@@ -2,7 +2,7 @@ const Soup = imports.gi.Soup;
 
 const RoutedServer = imports.routedServer.RoutedServer;
 
-const DEFAULT_PORT = 5000;
+const DEFAULT_PORT = 3004;
 
 function main () {
     let server = new RoutedServer({
