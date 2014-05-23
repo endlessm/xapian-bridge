@@ -1,0 +1,22 @@
+Source: xapian-bridge
+Priority: standard
+Maintainer: Philip Chimento <philip@endlessm.com>
+Build-Depends: autotools-dev,
+               debhelper (>= 8.0.0),
+               dh-systemd (>= 1.5),
+               gir1.2-glib-2.0,
+               gir1.2-soup-2.4
+Standards-Version: 3.9.4
+Section: non-free/libs
+Homepage: http://www.endlessm.com
+
+Package: xapian-bridge
+Section: non-free/libdevel
+Architecture: any
+Depends: gjs,
+         gir1.2-glib-2.0,
+         gir1.2-soup-2.4,
+         ${misc:Depends}
+Description: Exposes Xapian API via HTTP
+ Uses gjs and libsoup to expose the xapian api over
+ http.
