@@ -1,0 +1,3 @@
+#!/bin/bash
+
+gjs -I @pkgdatadir@/src -c "imports.xapianBridge.main()"
