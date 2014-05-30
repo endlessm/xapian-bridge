@@ -6,7 +6,8 @@ Build-Depends: autotools-dev,
                dh-systemd (>= 1.5),
                gir1.2-glib-2.0,
                gir1.2-soup-2.4,
-               gobject-introspection (>= 0.9.7)
+               gobject-introspection (>= 0.9.7),
+               libgirepository1.0-dev
 Standards-Version: 3.9.4
 Section: non-free/libs
 Homepage: http://www.endlessm.com
