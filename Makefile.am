@@ -10,7 +10,9 @@
 # Generated files that 'make clean' should erase
 CLEANFILES =
 DISTCLEANFILES =
-EXTRA_DIST =
+
+# Extra files to distribute in the tarball
+EXTRA_DIST = README.md
 
 # # # INSTALL RULES # # #
 
