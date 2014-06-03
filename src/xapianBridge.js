@@ -6,6 +6,9 @@ const DatabaseManager = imports.databaseManager.DatabaseManager;
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
 
+// Name of the pseudo index which triggers a query across all databases
+const META_DATABASE_NAME = '_all'
+
 function main () {
     let server = new RoutedServer({
         port: DEFAULT_PORT
@@ -19,7 +22,7 @@ function main () {
     //      404 - No database was found at index_name
     server.get('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
-        if (manager.has_db(index_name)) {
+        if (manager.has_db(index_name) || index_name === META_DATABASE_NAME) {
             return res(msg, Soup.Status.OK);
         } else {
             return res(msg, Soup.Status.NOT_FOUND);
@@ -31,11 +34,18 @@ function main () {
     //      200 - Database was successfully made
     //      400 - No path was specified
     //      403 - Database creation failed because path didn't exist
+    //      409 - Attempt was made to create a database at reserved index, e.g.
+    //            META_DATABASE_NAME. Retry with different index name
     server.put('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
         let path = query.path;
+
         if (typeof path === 'undefined') {
             return res(msg, Soup.Status.BAD_REQUEST);
+        }
+
+        if (index_name === META_DATABASE_NAME) {
+            return res(msg, Soup.Status.CONFLICT);
         }
 
         if (!manager.has_db(index_name)) {
@@ -57,9 +67,16 @@ function main () {
     // DELETE /:index_name - remove the xapian database at index_name
     // Returns:
     //      200 - Database was successfully deleted
+    //      403 - Attempt was made to delete a reserved index, like
+    //            META_DATABASE_NAME
     //      404 - No database existed at index_name
     server.delete('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
+
+        if (index_name === META_DATABASE_NAME) {
+            return res(msg, Soup.Status.FORBIDDEN);
+        }
+
         try {
             manager.remove_db(index_name);
             return res(msg, Soup.Status.OK);
@@ -71,14 +88,24 @@ function main () {
     // GET /:index_name/query - query an index
     // Returns:
     //     200 - Query was successful
+    //     400 - One of the required parameters wasn't specified (e.g. limit)
     //     404 - No database was found at index_name
     server.get('/:index_name/query', function (params, query, msg) {
         let index_name = params.index_name;
         let q = query.q;
         let collapse_term = query.collapse;
         let limit = query.limit;
+        if (typeof limit === 'undefined') {
+            return res(msg, Soup.Status.BAD_REQUEST);
+        }
+
         try {
-            let results = manager.query_db(index_name, q, collapse_term, limit);
+            let results;
+            if (index_name === META_DATABASE_NAME) {
+                results = manager.query_all(q, collapse_term, limit);
+            } else {
+                results = manager.query_db(index_name, q, collapse_term, limit);
+            }
             return res(msg, Soup.Status.OK, results);
         } catch (e) {
             if (e === DatabaseManager.ERR_DATABASE_NOT_FOUND) {
