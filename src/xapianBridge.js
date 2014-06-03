@@ -7,6 +7,11 @@ const RoutedServer = imports.routedServer.RoutedServer;
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
 
+// Name of the pseudo index which triggers a query across all databases
+const META_DATABASE_NAME = '_all';
+// Methods available to meta database resources. Used in Allow headers
+const META_DATABASE_METHODS = 'GET';
+
 function main () {
     let server = new RoutedServer({
         port: DEFAULT_PORT
@@ -36,7 +41,7 @@ function main () {
     //      404 - No database was found at index_name
     server.get('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
-        if (manager.has_db(index_name)) {
+        if (manager.has_db(index_name) || index_name === META_DATABASE_NAME) {
             return res(msg, Soup.Status.OK);
         } else {
             return res(msg, Soup.Status.NOT_FOUND);
@@ -48,11 +53,19 @@ function main () {
     //      200 - Database was successfully made
     //      400 - No path was specified
     //      403 - Database creation failed because path didn't exist
+    //      405 - Attempt was made to create a database at reserved index
     server.put('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
         let path = query.path;
+
         if (typeof path === 'undefined') {
             return res(msg, Soup.Status.BAD_REQUEST);
+        }
+
+        if (index_name === META_DATABASE_NAME) {
+            return res(msg, Soup.Status.METHOD_NOT_ALLOWED, {
+                'Allow': META_DATABASE_METHODS
+            });
         }
 
         if (!manager.has_db(index_name)) {
@@ -79,8 +92,17 @@ function main () {
     // Returns:
     //      200 - Database was successfully deleted
     //      404 - No database existed at index_name
+    //      405 - Attempt was made to delete a reserved index, like
+    //            META_DATABASE_NAME
     server.delete('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
+
+        if (index_name === META_DATABASE_NAME) {
+            return res(msg, Soup.Status.METHOD_NOT_ALLOWED, {
+                'Allow': META_DATABASE_METHODS
+            });
+        }
+
         try {
             // remove the database from the manager so it can't be queried
             manager.remove_db(index_name);
@@ -96,15 +118,25 @@ function main () {
     // GET /:index_name/query - query an index
     // Returns:
     //     200 - Query was successful
+    //     400 - One of the required parameters wasn't specified (e.g. limit)
     //     404 - No database was found at index_name
     server.get('/:index_name/query', function (params, query, msg) {
         let index_name = params.index_name;
         let q = query.q;
         let collapse_term = query.collapse;
         let limit = query.limit;
+        if (typeof limit === 'undefined') {
+            return res(msg, Soup.Status.BAD_REQUEST);
+        }
+
         try {
-            let results = manager.query_db(index_name, q, collapse_term, limit);
-            return res(msg, Soup.Status.OK, results);
+            let results;
+            if (index_name === META_DATABASE_NAME) {
+                results = manager.query_all(q, collapse_term, limit);
+            } else {
+                results = manager.query_db(index_name, q, collapse_term, limit);
+            }
+            return res(msg, Soup.Status.OK, undefined, results);
         } catch (e) {
             if (e === DatabaseManager.ERR_DATABASE_NOT_FOUND) {
                 return res(msg, Soup.Status.NOT_FOUND);
@@ -119,8 +151,17 @@ function main () {
 }
 
 // Sets up a SoupMessage to respond
-function res (soup_msg, status_code, body) {
+function res (soup_msg, status_code, headers, body) {
     soup_msg.set_status(status_code);
+
+    if (typeof headers !== 'undefined') {
+        let res_headers = soup_msg.response_headers;
+        Object.keys(headers).forEach(function (name) {
+            let val = headers[name];
+            res_headers.replace(name, val);
+        });
+    }
+
     if (typeof body !== 'undefined') {
         let body_str = JSON.stringify(body);
         soup_msg.set_response(MIME_JSON, Soup.MemoryUse.COPY, body_str, body_str.length);
