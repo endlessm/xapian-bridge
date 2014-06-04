@@ -55,9 +55,9 @@ const DatabaseManager = Lang.Class({
     remove_db: function (index_name) {
         if (this.has_db(index_name)) {
             delete this._databases[index_name];
+        } else {
+            throw ERR_DATABASE_NOT_FOUND;
         }
-
-        throw ERR_DATABASE_NOT_FOUND;
     },
 
     // If database exists at index_name, queries it with:
