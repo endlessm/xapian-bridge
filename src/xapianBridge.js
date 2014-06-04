@@ -1,17 +1,39 @@
 const Soup = imports.gi.Soup;
 
-const RoutedServer = imports.routedServer.RoutedServer;
+const DatabaseCache = imports.databaseCache.DatabaseCache;
 const DatabaseManager = imports.databaseManager.DatabaseManager;
+const RoutedServer = imports.routedServer.RoutedServer;
 
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
+
+// FIXME: this needs to be generated at make time, methinks. maybe PREFIX/var/cache?
+const CACHE_DIR_PATH = 'cachedir';
 
 function main () {
     let server = new RoutedServer({
         port: DEFAULT_PORT
     });
 
+    let cache = new DatabaseCache({
+        cache_dir: CACHE_DIR_PATH
+    });
     let manager = new DatabaseManager();
+    
+    // load the cached database info and attempt to add those databases
+    let stored_database_paths = cache.get_entries();
+    for (let index_name in stored_database_paths) {
+        let path = stored_database_paths[index_name];
+        try {
+            manager.create_db(index_name, path);
+        } catch (e) {
+            // if the database info is incorrect (i.e. no database at path),
+            // remove that data from the cache
+            if (e === DatabaseManager.ERR_INVALID_PATH) {
+                cache.remove_entry(index_name);
+            }
+        }
+    }
 
     // GET /:index_name - just returns OK if database exists, NOT_FOUND otherwise
     // Returns:
@@ -40,7 +62,11 @@ function main () {
 
         if (!manager.has_db(index_name)) {
             try {
+                // create the Xapian database and add it to the manager
                 manager.create_db(index_name, path);
+
+                // add the index_name/path entry to the cache
+                cache.set_entry(index_name, path);
             } catch (e) {
                 if (e === DatabaseManager.ERR_INVALID_PATH) {
                     return res(msg, Soup.Status.FORBIDDEN);
@@ -61,7 +87,11 @@ function main () {
     server.delete('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
         try {
+            // remove the database from the manager so it can't be queried
             manager.remove_db(index_name);
+
+            // remove the index_name/path entry from the cache
+            cache.remove_entry(index_name);
             return res(msg, Soup.Status.OK);
         } catch (e) {
             return res(msg, Soup.Status.NOT_FOUND);

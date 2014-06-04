@@ -17,6 +17,7 @@ EXTRA_DIST = README.md
 # # # INSTALL RULES # # #
 
 js_sources = \
+	src/databaseCache.js \
 	src/databaseManager.js \
 	src/router.js \
 	src/routedServer.js \
