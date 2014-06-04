@@ -1,0 +1,4 @@
+// Private module for configure-time constants
+
+// directory in which we'll store our cache dir
+const CACHE_DIR = '@localstatedir@/cache';
