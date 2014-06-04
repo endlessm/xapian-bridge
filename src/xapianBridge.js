@@ -7,17 +7,12 @@ const RoutedServer = imports.routedServer.RoutedServer;
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
 
-// FIXME: this needs to be generated at make time, methinks. maybe PREFIX/var/cache?
-const CACHE_DIR_PATH = 'cachedir';
-
 function main () {
     let server = new RoutedServer({
         port: DEFAULT_PORT
     });
 
-    let cache = new DatabaseCache({
-        cache_dir: CACHE_DIR_PATH
-    });
+    let cache = new DatabaseCache();
     let manager = new DatabaseManager();
     
     // load the cached database info and attempt to add those databases

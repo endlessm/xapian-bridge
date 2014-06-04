@@ -3,6 +3,8 @@ const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Lang = imports.lang;
 
+const config = imports.config;
+
 GObject.ParamFlags.READWRITE = GObject.ParamFlags.READABLE | GObject.ParamFlags.WRITABLE;
 
 const CACHE_DIR_PERMISSIONS = parseInt('744', 8);
@@ -16,16 +18,17 @@ const DatabaseCache = Lang.Class({
         'cache-dir': GObject.ParamSpec.string('cache-dir',
             'Cache directory', 'Directory in which the database cache should live',
             GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
-            '/var/cache'),
+            config.CACHE_DIR),
     },
 
     _init: function (params) {
         this.parent(params);
 
         // mkdir -p $CACHE_DIR_PATH
-        GLib.mkdir_with_parents(this.cache_dir, CACHE_DIR_PERMISSIONS);
+        let xb_cache_dir = this.cache_dir + '/xapian-glib';
+        GLib.mkdir_with_parents(xb_cache_dir, CACHE_DIR_PERMISSIONS);
 
-        let CACHE_FILE_PATH = this.cache_dir + '/databases.json';
+        let CACHE_FILE_PATH = xb_cache_dir + '/databases.json';
         this._cache_file = Gio.File.new_for_path(CACHE_FILE_PATH);
 
         this._entries = this._get_cache_contents();
