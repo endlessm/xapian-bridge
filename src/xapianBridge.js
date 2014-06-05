@@ -1,9 +1,9 @@
 const Soup = imports.gi.Soup;
 const GLib = imports.gi.GLib;
 
-const DatabaseCache = imports.databaseCache.DatabaseCache;
-const DatabaseManager = imports.databaseManager.DatabaseManager;
-const RoutedServer = imports.routedServer.RoutedServer;
+const DatabaseCache = imports.databaseCache;
+const DatabaseManager = imports.databaseManager;
+const RoutedServer = imports.routedServer;
 
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
@@ -15,7 +15,7 @@ const META_DATABASE_NAME = '_all';
 const META_DATABASE_METHODS = 'GET';
 
 function main () {
-    let server = new RoutedServer();
+    let server = new RoutedServer.RoutedServer();
     let fd = NaN;
     // If this service is launched by systemd, LISTEN_PID and LISTEN_FDS will
     // be set by systemd and we should set up the server to use the fd instead
@@ -32,21 +32,18 @@ function main () {
         server.listen_local(DEFAULT_PORT, 0);
     }
 
-    let cache = new DatabaseCache();
-    let manager = new DatabaseManager();
+    let cache = new DatabaseCache.DatabaseCache();
+    let manager = new DatabaseManager.DatabaseManager();
     
     // load the cached database info and attempt to add those databases
-    let stored_database_paths = cache.get_entries();
-    for (let index_name in stored_database_paths) {
-        let path = stored_database_paths[index_name];
+    let stored_database_data = cache.get_entries();
+    for (let index_name in stored_database_data) {
+        let db_data = stored_database_data[index_name];
         try {
-            manager.create_db(index_name, path);
+            manager.create_db(index_name, db_data.path, db_data.lang);
         } catch (e) {
-            // if the database info is incorrect (i.e. no database at path),
-            // remove that data from the cache
-            if (e === DatabaseManager.ERR_INVALID_PATH) {
-                cache.remove_entry(index_name);
-            }
+            // error creating the entry in the cache, so delete it
+            cache.remove_entry(index_name);
         }
     }
 
@@ -66,15 +63,20 @@ function main () {
     // PUT /:index_name - add/update the xapian database at index_name
     // Returns:
     //      200 - Database was successfully made
-    //      400 - No path was specified
+    //      400 - No path was specified or lang is unsupported
     //      403 - Database creation failed because path didn't exist
     //      405 - Attempt was made to create a database at reserved index
     server.put('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
         let path = query.path;
+        let lang = query.lang;
 
         if (typeof path === 'undefined') {
             return res(msg, Soup.Status.BAD_REQUEST);
+        }
+
+        if (typeof lang === 'undefined') {
+            lang = 'none';
         }
 
         if (index_name === META_DATABASE_NAME) {
@@ -85,12 +87,13 @@ function main () {
 
         try {
             // create the Xapian database and add it to the manager
-            manager.create_db(index_name, path);
+            manager.create_db(index_name, path, lang);
 
             // add the index_name/path entry to the cache
-            cache.set_entry(index_name, path);
+            cache.set_entry(index_name, path, lang);
         } catch (e) {
-            if (e === DatabaseManager.ERR_INVALID_PATH) {
+            if (e === DatabaseManager.ERR_INVALID_PATH ||
+                e === DatabaseManager.ERR_UNSUPPORTED_LANG) {
                 return res(msg, Soup.Status.FORBIDDEN);
             } else {
                 print('ERR', e);
