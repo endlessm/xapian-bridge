@@ -7,6 +7,7 @@ Build-Depends: autotools-dev,
                gir1.2-glib-2.0,
                gir1.2-gtk-3.0,
                gir1.2-soup-2.4,
+               gir1.2-xapian-1.0,
                gjs,
                gobject-introspection (>= 0.9.7),
                libgirepository1.0-dev
@@ -20,6 +21,7 @@ Architecture: any
 Depends: gjs,
          gir1.2-glib-2.0,
          gir1.2-soup-2.4,
+         gir1.2-xapian-1.0,
          ${misc:Depends}
 Description: Exposes Xapian API via HTTP
  Uses gjs and libsoup to expose the xapian api over
