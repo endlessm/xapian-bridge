@@ -16,35 +16,51 @@ EXTRA_DIST = README.md
 
 # # # INSTALL RULES # # #
 
+# Common substitution script for generated files
+do_subst = sed \
+	-e 's|@pkglibdir[@]|$(pkglibdir)|g' \
+	-e 's|@pkgdatadir[@]|$(pkgdatadir)|g' \
+	-e 's|@localstatedir[@]|$(localstatedir)|g' \
+	$(NULL)
+
+xapian-bridge: xapian-bridge.in Makefile
+	rm -f $@ $@.tmp && \
+	$(do_subst) $< >$@.tmp && \
+	chmod +x $@.tmp && \
+	mv $@.tmp $@
+
+bin_SCRIPTS = xapian-bridge
+CLEANFILES += xapian-bridge
+EXTRA_DIST += xapian-bridge.in
+
+# Generate a src/config.js file with installed directory locations
+src/config.js: src/config.js.in Makefile
+	$(AM_V_GEN)mkdir -p src && \
+	rm -f $@ $@.tmp && \
+	$(do_subst) $< >$@.tmp && \
+	mv $@.tmp $@
+
+CLEANFILES += src/config.js
+EXTRA_DIST += src/config.js.in 
+
 js_sources = \
+	src/config.js \
+	src/databaseCache.js \
 	src/databaseManager.js \
 	src/router.js \
 	src/routedServer.js \
 	src/xapianBridge.js \
 	$(NULL)
 
-nobase_pkgdata_DATA = \
-	$(js_sources) \
-	$(NULL)
-
-do_subst = sed -e 's|@pkglibdir[@]|$(pkglibdir)|g' -e 's|@pkgdatadir[@]|$(pkgdatadir)|g'
-xapian-bridge: xapian-bridge.in Makefile
-	$(AM_V_GEN) $(do_subst) $< > $@
-	chmod +x $@
-
-bin_SCRIPTS = xapian-bridge
-CLEANFILES += xapian-bridge
-
-EXTRA_DIST += \
-	$(js_sources) \
-	xapian-bridge.in \
-	$(NULL)
+EXTRA_DIST += $(js_sources)
+nobase_pkgdata_DATA = $(js_sources)
 
 # # # TESTS # # #
 
 # Run tests when running 'make check'
 # TESTS = test
 xapian_bridge_js_tests = \
+	test/unit/testCache.js \
 	test/unit/testRouter.js \
 	$(NULL)
 

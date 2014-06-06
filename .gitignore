@@ -1,5 +1,6 @@
 # Build products
 xapian-bridge
+src/config.js
 
 # Autotools/Gettext droppings
 .deps
