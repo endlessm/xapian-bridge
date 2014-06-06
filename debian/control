@@ -1,6 +1,6 @@
 Source: xapian-bridge
 Priority: standard
-Maintainer: Philip Chimento <philip@endlessm.com>
+Maintainer: Will Greenberg <will@endlessm.com>
 Build-Depends: autotools-dev,
                debhelper (>= 8.0.0),
                dh-systemd (>= 1.5),
