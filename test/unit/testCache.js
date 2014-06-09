@@ -16,11 +16,6 @@ describe('Database cache', function () {
         expect(cache).toBeDefined();
     });
 
-    it('should default to its cache dir to automade config value', function () {
-        let defaultDirCache = new DatabaseCache();
-        expect(defaultDirCache.cache_dir).toBe(config.CACHE_DIR);
-    });
-
     it('should allow cache dir to be a construct property', function () {
         expect(cache.cache_dir).toBe(tmp_dir_path);
     });
