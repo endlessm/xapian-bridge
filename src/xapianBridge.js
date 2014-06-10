@@ -1,4 +1,5 @@
 const Soup = imports.gi.Soup;
+const GLib = imports.gi.GLib;
 
 const DatabaseCache = imports.databaseCache.DatabaseCache;
 const DatabaseManager = imports.databaseManager.DatabaseManager;
@@ -13,9 +14,22 @@ const META_DATABASE_NAME = '_all';
 const META_DATABASE_METHODS = 'GET';
 
 function main () {
-    let server = new RoutedServer({
-        port: DEFAULT_PORT
-    });
+    let server = new RoutedServer();
+    let fd = NaN;
+    // If this service is launched by systemd, LISTEN_PID and LISTEN_FDS will
+    // be set by systemd and we should set up the server to use the fd instead
+    // of a port
+    if (GLib.getenv("LISTEN_PID") !== null) {
+        fd_string = GLib.getenv("LISTEN_FDS");
+        if (fd_string !== null) {
+            fd = parseInt(fd_string, 10);
+        }
+    }
+    if (!isNaN(fd)) {
+        server.listen_fd(fd, 0);
+    } else {
+        server.listen_local(DEFAULT_PORT, 0);
+    }
 
     let cache = new DatabaseCache();
     let manager = new DatabaseManager();

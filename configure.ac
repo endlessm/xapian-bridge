@@ -71,6 +71,7 @@ AC_CACHE_SAVE
 EOS_CHECK_GJS_GIR([GLib], [2.0])
 EOS_CHECK_GJS_GIR([GObject], [2.0])
 EOS_CHECK_GJS_GIR([Soup], [2.4])
+EOS_CHECK_GJS_GIR_API([Soup], [Server.prototype.listen_fd])
 EOS_CHECK_GJS_GIR([Xapian], [1.0])
 
 AC_CACHE_SAVE
