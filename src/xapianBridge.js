@@ -7,6 +7,7 @@ const RoutedServer = imports.routedServer.RoutedServer;
 
 const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
+const SYSTEMD_LISTEN_FD = 3;
 
 // Name of the pseudo index which triggers a query across all databases
 const META_DATABASE_NAME = '_all';
@@ -20,13 +21,13 @@ function main () {
     // be set by systemd and we should set up the server to use the fd instead
     // of a port
     if (GLib.getenv("LISTEN_PID") !== null) {
-        fd_string = GLib.getenv("LISTEN_FDS");
+        let fd_string = GLib.getenv("LISTEN_FDS");
         if (fd_string !== null) {
             fd = parseInt(fd_string, 10);
         }
     }
-    if (!isNaN(fd)) {
-        server.listen_fd(fd, 0);
+    if (fd === 1) {
+        server.listen_fd(SYSTEMD_LISTEN_FD, 0);
     } else {
         server.listen_local(DEFAULT_PORT, 0);
     }
