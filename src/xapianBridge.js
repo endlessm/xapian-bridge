@@ -83,20 +83,18 @@ function main () {
             });
         }
 
-        if (!manager.has_db(index_name)) {
-            try {
-                // create the Xapian database and add it to the manager
-                manager.create_db(index_name, path);
+        try {
+            // create the Xapian database and add it to the manager
+            manager.create_db(index_name, path);
 
-                // add the index_name/path entry to the cache
-                cache.set_entry(index_name, path);
-            } catch (e) {
-                if (e === DatabaseManager.ERR_INVALID_PATH) {
-                    return res(msg, Soup.Status.FORBIDDEN);
-                } else {
-                    print('ERR', e);
-                    return res(msg, Soup.Status.INTERNAL_SERVER_ERROR);
-                }
+            // add the index_name/path entry to the cache
+            cache.set_entry(index_name, path);
+        } catch (e) {
+            if (e === DatabaseManager.ERR_INVALID_PATH) {
+                return res(msg, Soup.Status.FORBIDDEN);
+            } else {
+                print('ERR', e);
+                return res(msg, Soup.Status.INTERNAL_SERVER_ERROR);
             }
         }
 
