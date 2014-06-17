@@ -2,7 +2,8 @@ const GObject = imports.gi.GObject;
 const Lang = imports.lang;
 const Xapian = imports.gi.Xapian;
 
-const QUERY_PARSER_FLAGS = Xapian.QueryParserFeature.DEFAULT | Xapian.QueryParserFeature.WILDCARD;
+const QUERY_PARSER_FLAGS = Xapian.QueryParserFeature.DEFAULT
+                         | Xapian.QueryParserFeature.WILDCARD;
 const STANDARD_PREFIXES = ['S', 'C', 'D', 'K', 'S', 'T', 'Z'];
 
 const ERR_DATABASE_NOT_FOUND = 0;
@@ -145,7 +146,7 @@ const DatabaseManager = Lang.Class({
         }
 
         this._query_parser.database = db;
-        let parsed_query = this._query_parser.parse_query(q, QUERY_PARSER_FLAGS);
+        let parsed_query = this._query_parser.parse_query_full(q, QUERY_PARSER_FLAGS, '');
 
         let enquire = new Xapian.Enquire({
             database: db
