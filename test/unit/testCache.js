@@ -32,8 +32,8 @@ describe('Database cache', function () {
 
         // ensure the cache's in-memory entries are what we expect
         expect(cache.get_entries()).toEqual({
-            'foo': '/some/path',
-            'bar': '/some/other/path'
+            'foo': { path: '/some/path' },
+            'bar': { path: '/some/other/path' }
         });
 
         // make a new cache which reads the now-written cache to init its entries
@@ -51,7 +51,25 @@ describe('Database cache', function () {
 
         // ensure the cache's in-memory entries are what we expect
         expect(cache.get_entries()).toEqual({
-            'bar': '/some/other/path'
+            'bar': { path: '/some/other/path' }
+        });
+
+        // make a new cache which reads the now-written cache to init its entries
+        let new_cache = new DatabaseCache({
+            cache_dir: cache.cache_dir
+        });
+        // ensure that the cached entries reflect the in-memory entries
+        expect(new_cache.get_entries()).toEqual(cache.get_entries());
+    });
+
+    it('should support a lang parameter', function () {
+        cache.set_entry('foo', '/some/path', 'gallifreyan');
+        cache.set_entry('bar', '/some/other/path', 'swaghili');
+
+        // ensure the cache's in-memory entries are what we expect
+        expect(cache.get_entries()).toEqual({
+            'foo': { path: '/some/path', lang: 'gallifreyan' },
+            'bar': { path: '/some/other/path', lang: 'swaghili' }
         });
 
         // make a new cache which reads the now-written cache to init its entries

@@ -34,9 +34,16 @@ const DatabaseCache = Lang.Class({
         this._entries = this._get_cache_contents();
     },
 
-    // Stores the path value for index_name and writes to cache
-    set_entry: function (index_name, path) {
-        this._entries[index_name] = path;
+    // Stores the path and lang for index_name and writes to cache
+    set_entry: function (index_name, path, lang) {
+        let entry = {};
+
+        entry.path = path;
+        if (typeof lang !== 'undefined') {
+            entry.lang = lang;
+        }
+
+        this._entries[index_name] = entry;
         this.save();
     },
 
@@ -46,7 +53,10 @@ const DatabaseCache = Lang.Class({
         this.save();
     },
 
-    // Returns an entry object whose keys are index names and values are paths
+    // Returns an entry object whose keys are index names and values are objects
+    // with:
+    //    * path: the filesystem path of the database
+    //    * lang: the primary language of the database
     get_entries: function () {
         return this._entries;
     },
