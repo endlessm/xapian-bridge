@@ -9,8 +9,8 @@ const DEFAULT_PORT = 3004;
 const MIME_JSON = 'application/json';
 const SYSTEMD_LISTEN_FD = 3;
 
-// Name of the pseudo index which triggers a query across all databases
-const META_DATABASE_NAME = '_all';
+// List of the pseudo index names
+var META_DATABASE_NAMES = ['_all'];
 // Methods available to meta database resources. Used in Allow headers
 const META_DATABASE_METHODS = 'GET';
 
@@ -53,7 +53,7 @@ function main () {
     //      404 - No database was found at index_name
     server.get('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
-        if (manager.has_db(index_name) || index_name === META_DATABASE_NAME) {
+        if (manager.has_db(index_name) || META_DATABASE_NAMES.indexOf(index_name) !== -1) {
             return res(msg, Soup.Status.OK);
         } else {
             return res(msg, Soup.Status.NOT_FOUND);
@@ -79,7 +79,7 @@ function main () {
             lang = 'none';
         }
 
-        if (index_name === META_DATABASE_NAME) {
+        if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
             return res(msg, Soup.Status.METHOD_NOT_ALLOWED, {
                 'Allow': META_DATABASE_METHODS
             });
@@ -91,6 +91,13 @@ function main () {
 
             // add the index_name/path entry to the cache
             cache.set_entry(index_name, path, lang);
+
+            // since a database now exists for lang, ensure a meta database name
+            // exists for it
+            let lang_index_name = '_' + lang;
+            if (META_DATABASE_NAMES.indexOf(lang_index_name) === -1) {
+                META_DATABASE_NAMES.push(lang_index_name);
+            }
         } catch (e) {
             if (e === DatabaseManager.ERR_INVALID_PATH ||
                 e === DatabaseManager.ERR_UNSUPPORTED_LANG) {
@@ -108,12 +115,11 @@ function main () {
     // Returns:
     //      200 - Database was successfully deleted
     //      404 - No database existed at index_name
-    //      405 - Attempt was made to delete a reserved index, like
-    //            META_DATABASE_NAME
+    //      405 - Attempt was made to delete a reserved index, like "_all"
     server.delete('/:index_name', function (params, query, msg) {
         let index_name = params.index_name;
 
-        if (index_name === META_DATABASE_NAME) {
+        if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
             return res(msg, Soup.Status.METHOD_NOT_ALLOWED, {
                 'Allow': META_DATABASE_METHODS
             });
@@ -147,8 +153,13 @@ function main () {
 
         try {
             let results;
-            if (index_name === META_DATABASE_NAME) {
-                results = manager.query_all(q, collapse_term, limit);
+            if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
+                if (index_name === '_all') {
+                    results = manager.query_all(q, collapse_term, limit);
+                } else {
+                    let lang = index_name.slice(1); // index_name === '_{lang}'
+                    results = manager.query_lang(lang, q, collapse_term, limit);
+                }
             } else {
                 results = manager.query_db(index_name, q, collapse_term, limit);
             }

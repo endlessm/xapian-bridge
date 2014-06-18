@@ -30,6 +30,12 @@ const RoutedServer = new Lang.Class({
     },
 
     _meta_handler: function (server, msg, path, query, client) {
+        // Soup defaults query to null when there's no querystring, which
+        // doesn't make for a pleasant/typesafe API. Better to default to an
+        // empty object which we can safely check properties on
+        if (query === null) {
+            query = {};
+        }
         this._router.handle_route(msg.method, path, query, msg);
     }
 });

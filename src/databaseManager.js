@@ -104,12 +104,18 @@ const DatabaseManager = Lang.Class({
     },
     
     // returns a new Xapian database which has all currently managed databases
-    // as children to facilitate queries across all databases
-    _new_meta_db: function () {
+    // as children to facilitate queries across all databases. If lang is
+    // specified, only return databases which are registered under that lang
+    _new_meta_db: function (lang) {
+        // if lang was unspecified, we're selecting all databases
+        let selectAll = (typeof lang === 'undefined');
+
         let db = new Xapian.Database();
         db.init(null);
 
-        Object.keys(this._databases).forEach(function (index_name) {
+        Object.keys(this._databases).filter(function (index_name) {
+            return selectAll || this._database_langs[index_name] === lang; 
+        }.bind(this)).forEach(function (index_name) {
             let child_db = this._databases[index_name];
             let child_clone = new Xapian.Database({
                 path: child_db.path
@@ -148,6 +154,11 @@ const DatabaseManager = Lang.Class({
         }
 
         throw ERR_DATABASE_NOT_FOUND;
+    },
+
+    query_lang: function (lang, q, collapse_term, limit) {
+        let meta_lang_db = this._new_meta_db(lang);
+        return this._query(meta_lang_db, q, collapse_term, limit, lang);
     },
 
     // Queries all databases
