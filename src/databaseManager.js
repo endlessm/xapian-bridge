@@ -117,11 +117,7 @@ const DatabaseManager = Lang.Class({
             return selectAll || this._database_langs[index_name] === lang; 
         }.bind(this)).forEach(function (index_name) {
             let child_db = this._databases[index_name];
-            let child_clone = new Xapian.Database({
-                path: child_db.path
-            });
-            child_clone.init(null);
-            db.add_database(child_clone);
+            db.add_database(child_db);
         }.bind(this));
 
         return db;
