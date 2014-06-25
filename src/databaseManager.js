@@ -138,30 +138,30 @@ const DatabaseManager = Lang.Class({
 
     // If database exists at index_name, queries it with:
     //     q: querystring that's parseable by a QueryParser
-    //     collapse_term: read http://xapian.org/docs/collapsing.html
+    //     collapse_key: read http://xapian.org/docs/collapsing.html
     //     limit: max number of results to return
     //
     // If no such database exists, throw ERR_DATABASE_NOT_FOUND
-    query_db: function (index_name, q, collapse_term, limit) {
+    query_db: function (index_name, q, collapse_key, limit) {
         if (this.has_db(index_name)) {
             let lang = this._database_langs[index_name];
             let db = this._databases[index_name];
-            return this._query(db, q, collapse_term, limit, lang);
+            return this._query(db, q, collapse_key, limit, lang);
         }
 
         throw ERR_DATABASE_NOT_FOUND;
     },
 
-    query_lang: function (lang, q, collapse_term, limit) {
+    query_lang: function (lang, q, collapse_key, limit) {
         let meta_lang_db = this._new_meta_db(lang);
-        return this._query(meta_lang_db, q, collapse_term, limit, lang);
+        return this._query(meta_lang_db, q, collapse_key, limit, lang);
     },
 
     // Queries all databases
-    query_all: function (q, collapse_term, limit) {
+    query_all: function (q, collapse_key, limit) {
         // default language for _all queries is none
         let lang = 'none';
-        return this._query(this._meta_db, q, collapse_term, limit, lang);
+        return this._query(this._meta_db, q, collapse_key, limit, lang);
     },
 
     // Checks if the given database is empty (has no documents). Empty databases
@@ -177,7 +177,7 @@ const DatabaseManager = Lang.Class({
     // Queries db with the given parameters, and returns an object with:
     //     numResults: integer number of results being returned
     //     results: array of strings for every result doc, sorted by weight
-    _query: function (db, q, collapse_term, limit, lang) {
+    _query: function (db, q, collapse_key, limit, lang) {
         if (this._db_is_empty(db)) {
             return {
                 numResults: 0,
@@ -195,6 +195,11 @@ const DatabaseManager = Lang.Class({
             database: db
         });
         enquire.init(null);
+
+        if (typeof collapse_key !== 'undefined') {
+            enquire.set_collapse_key(collapse_key);
+        }
+
         enquire.set_query(parsed_query, parsed_query.get_length());
 
         let matches = enquire.get_mset(0, limit);
