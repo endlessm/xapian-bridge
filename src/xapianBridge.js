@@ -145,7 +145,7 @@ function main () {
     server.get('/:index_name/query', function (params, query, msg) {
         let index_name = params.index_name;
         let q = query.q;
-        let collapse_term = query.collapse;
+        let collapse_key = query.collapse;
         let limit = query.limit;
         if (typeof limit === 'undefined') {
             return res(msg, Soup.Status.BAD_REQUEST);
@@ -155,13 +155,13 @@ function main () {
             let results;
             if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
                 if (index_name === '_all') {
-                    results = manager.query_all(q, collapse_term, limit);
+                    results = manager.query_all(q, collapse_key, limit);
                 } else {
                     let lang = index_name.slice(1); // index_name === '_{lang}'
-                    results = manager.query_lang(lang, q, collapse_term, limit);
+                    results = manager.query_lang(lang, q, collapse_key, limit);
                 }
             } else {
-                results = manager.query_db(index_name, q, collapse_term, limit);
+                results = manager.query_db(index_name, q, collapse_key, limit);
             }
             return res(msg, Soup.Status.OK, undefined, results);
         } catch (e) {
