@@ -147,7 +147,8 @@ function main () {
         let q = query.q;
         let collapse_key = query.collapse;
         let limit = query.limit;
-        if (typeof limit === 'undefined') {
+        let offset = query.offset;
+        if (typeof limit === 'undefined' || typeof offset === 'undefined') {
             return res(msg, Soup.Status.BAD_REQUEST);
         }
 
@@ -155,13 +156,13 @@ function main () {
             let results;
             if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
                 if (index_name === '_all') {
-                    results = manager.query_all(q, collapse_key, limit);
+                    results = manager.query_all(q, collapse_key, limit, offset);
                 } else {
                     let lang = index_name.slice(1); // index_name === '_{lang}'
-                    results = manager.query_lang(lang, q, collapse_key, limit);
+                    results = manager.query_lang(lang, q, collapse_key, limit, offset);
                 }
             } else {
-                results = manager.query_db(index_name, q, collapse_key, limit);
+                results = manager.query_db(index_name, q, collapse_key, limit, offset);
             }
             return res(msg, Soup.Status.OK, undefined, results);
         } catch (e) {

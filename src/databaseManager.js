@@ -140,28 +140,29 @@ const DatabaseManager = Lang.Class({
     //     q: querystring that's parseable by a QueryParser
     //     collapse_key: read http://xapian.org/docs/collapsing.html
     //     limit: max number of results to return
+    //     offset: offset from which to start returning results
     //
     // If no such database exists, throw ERR_DATABASE_NOT_FOUND
-    query_db: function (index_name, q, collapse_key, limit) {
+    query_db: function (index_name, q, collapse_key, limit, offset) {
         if (this.has_db(index_name)) {
             let lang = this._database_langs[index_name];
             let db = this._databases[index_name];
-            return this._query(db, q, collapse_key, limit, lang);
+            return this._query(db, q, collapse_key, limit, offset, lang);
         }
 
         throw ERR_DATABASE_NOT_FOUND;
     },
 
-    query_lang: function (lang, q, collapse_key, limit) {
+    query_lang: function (lang, q, collapse_key, limit, offset) {
         let meta_lang_db = this._new_meta_db(lang);
-        return this._query(meta_lang_db, q, collapse_key, limit, lang);
+        return this._query(meta_lang_db, q, collapse_key, limit, offset, lang);
     },
 
     // Queries all databases
-    query_all: function (q, collapse_key, limit) {
+    query_all: function (q, collapse_key, limit, offset) {
         // default language for _all queries is none
         let lang = 'none';
-        return this._query(this._meta_db, q, collapse_key, limit, lang);
+        return this._query(this._meta_db, q, collapse_key, limit, offset, lang);
     },
 
     // Checks if the given database is empty (has no documents). Empty databases
@@ -177,10 +178,12 @@ const DatabaseManager = Lang.Class({
     // Queries db with the given parameters, and returns an object with:
     //     numResults: integer number of results being returned
     //     results: array of strings for every result doc, sorted by weight
-    _query: function (db, q, collapse_key, limit, lang) {
+    _query: function (db, q, collapse_key, limit, offset, lang) {
         if (this._db_is_empty(db)) {
             return {
                 numResults: 0,
+                offset: 0,
+                totalResults: 0,
                 results: []
             }
         }
@@ -201,8 +204,7 @@ const DatabaseManager = Lang.Class({
         }
 
         enquire.set_query(parsed_query, parsed_query.get_length());
-
-        let matches = enquire.get_mset(0, limit);
+        let matches = enquire.get_mset(offset, limit);
         let iter = matches.get_begin();
         let docs = [];
 
@@ -212,6 +214,7 @@ const DatabaseManager = Lang.Class({
 
         return {
             numResults: docs.length,
+            offset: offset,
             results: docs.map(JSON.parse)
         };
     }
