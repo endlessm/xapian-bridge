@@ -146,9 +146,9 @@ function main () {
         let index_name = params.index_name;
         let q = query.q;
         let collapse_key = query.collapse;
-        let limit = query.limit;
-        let offset = query.offset;
-        if (typeof limit === 'undefined' || typeof offset === 'undefined') {
+        let limit = parseInt(query.limit);
+        let offset = parseInt(query.offset);
+        if (isNaN(limit) || isNaN(offset)) {
             return res(msg, Soup.Status.BAD_REQUEST);
         }
 
