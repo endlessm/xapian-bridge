@@ -136,33 +136,34 @@ const DatabaseManager = Lang.Class({
         }
     },
 
-    // If database exists at index_name, queries it with:
+    // If database exists at index_name, queries it with the following options:
     //     q: querystring that's parseable by a QueryParser
     //     collapse_key: read http://xapian.org/docs/collapsing.html
     //     limit: max number of results to return
     //     offset: offset from which to start returning results
+    //     cutoff: percent between (0, 100) for the Enquire percent cutoff
     //
     // If no such database exists, throw ERR_DATABASE_NOT_FOUND
-    query_db: function (index_name, q, collapse_key, limit, offset) {
+    query_db: function (index_name, options) {
         if (this.has_db(index_name)) {
             let lang = this._database_langs[index_name];
             let db = this._databases[index_name];
-            return this._query(db, q, collapse_key, limit, offset, lang);
+            return this._query(db, lang, options);
         }
 
         throw ERR_DATABASE_NOT_FOUND;
     },
 
-    query_lang: function (lang, q, collapse_key, limit, offset) {
+    query_lang: function (lang, options) {
         let meta_lang_db = this._new_meta_db(lang);
-        return this._query(meta_lang_db, q, collapse_key, limit, offset, lang);
+        return this._query(meta_lang_db, lang, options);
     },
 
     // Queries all databases
-    query_all: function (q, collapse_key, limit, offset) {
+    query_all: function (options) {
         // default language for _all queries is none
         let lang = 'none';
-        return this._query(this._meta_db, q, collapse_key, limit, offset, lang);
+        return this._query(this._meta_db, lang, options);
     },
 
     // Checks if the given database is empty (has no documents). Empty databases
@@ -177,8 +178,9 @@ const DatabaseManager = Lang.Class({
 
     // Queries db with the given parameters, and returns an object with:
     //     numResults: integer number of results being returned
+    //     offset: index from which results were gathered
     //     results: array of strings for every result doc, sorted by weight
-    _query: function (db, q, collapse_key, limit, offset, lang) {
+    _query: function (db, lang, options) {
         if (this._db_is_empty(db)) {
             return {
                 numResults: 0,
@@ -187,24 +189,27 @@ const DatabaseManager = Lang.Class({
                 results: []
             }
         }
-
         let stemmer = this._stemmers[lang];
 
         this._query_parser.database = db;
         this._query_parser.set_stemmer(stemmer);
-        let parsed_query = this._query_parser.parse_query_full(q, QUERY_PARSER_FLAGS, '');
+        let parsed_query = this._query_parser.parse_query_full(options.q, QUERY_PARSER_FLAGS, '');
 
         let enquire = new Xapian.Enquire({
             database: db
         });
         enquire.init(null);
 
-        if (typeof collapse_key !== 'undefined') {
-            enquire.set_collapse_key(collapse_key);
+        if (!isNaN(options.cutoff)) {
+            enquire.set_cutoff(options.cutoff);
+        }
+
+        if (typeof options.collapse_key !== 'undefined') {
+            enquire.set_collapse_key(options.collapse_key);
         }
 
         enquire.set_query(parsed_query, parsed_query.get_length());
-        let matches = enquire.get_mset(offset, limit);
+        let matches = enquire.get_mset(options.offset, options.limit);
         let iter = matches.get_begin();
         let docs = [];
 
@@ -214,7 +219,7 @@ const DatabaseManager = Lang.Class({
 
         return {
             numResults: docs.length,
-            offset: offset,
+            offset: options.offset,
             results: docs.map(JSON.parse)
         };
     }

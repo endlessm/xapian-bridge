@@ -144,11 +144,14 @@ function main () {
     //     404 - No database was found at index_name
     server.get('/:index_name/query', function (params, query, msg) {
         let index_name = params.index_name;
-        let q = query.q;
-        let collapse_key = query.collapse;
-        let limit = parseInt(query.limit);
-        let offset = parseInt(query.offset);
-        if (isNaN(limit) || isNaN(offset)) {
+        let options = {
+            q: query.q,
+            collapse_key: query.collapse,
+            limit: parseInt(query.limit),
+            offset: parseInt(query.offset),
+            cutoff: parseFloat(query.cutoff),
+        };
+        if (isNaN(options.limit) || isNaN(options.offset)) {
             return res(msg, Soup.Status.BAD_REQUEST);
         }
 
@@ -156,13 +159,13 @@ function main () {
             let results;
             if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
                 if (index_name === '_all') {
-                    results = manager.query_all(q, collapse_key, limit, offset);
+                    results = manager.query_all(q, options);
                 } else {
                     let lang = index_name.slice(1); // index_name === '_{lang}'
-                    results = manager.query_lang(lang, q, collapse_key, limit, offset);
+                    results = manager.query_lang(lang, options);
                 }
             } else {
-                results = manager.query_db(index_name, q, collapse_key, limit, offset);
+                results = manager.query_db(index_name, options);
             }
             return res(msg, Soup.Status.OK, undefined, results);
         } catch (e) {
