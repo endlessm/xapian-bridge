@@ -47,6 +47,7 @@ js_sources = \
 	src/config.js \
 	src/databaseCache.js \
 	src/databaseManager.js \
+	src/prefixStore.js \
 	src/router.js \
 	src/routedServer.js \
 	src/xapianBridge.js \
@@ -61,6 +62,7 @@ nobase_pkgdata_DATA = $(js_sources)
 # TESTS = test
 xapian_bridge_js_tests = \
 	test/unit/testCache.js \
+	test/unit/testPrefixStore.js \
 	test/unit/testRouter.js \
 	$(NULL)
 
