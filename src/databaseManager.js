@@ -2,9 +2,23 @@ const GObject = imports.gi.GObject;
 const Lang = imports.lang;
 const Xapian = imports.gi.Xapian;
 
+const PrefixStore = imports.prefixStore.PrefixStore;
+
 const QUERY_PARSER_FLAGS = Xapian.QueryParserFeature.DEFAULT
                          | Xapian.QueryParserFeature.WILDCARD;
-const STANDARD_PREFIXES = ['S', 'C', 'D', 'K', 'S', 'T', 'Z'];
+
+// TODO: these should be configurable
+const STANDARD_PREFIXES = {
+    prefixes: [
+        {field: 'title', prefix: 'S'}, 
+        {field: 'exact_title', prefix: 'XEXACTS'}, 
+    ],
+    booleanPrefixes: [
+        {field: 'tag', prefix: 'K'}, 
+        {field: 'id', prefix: 'Q'}, 
+    ]
+}
+const PREFIX_METADATA_KEY = 'XbPrefixes';
 
 const ERR_DATABASE_NOT_FOUND = 0;
 const ERR_INVALID_PATH = 1;
@@ -20,6 +34,11 @@ const DatabaseManager = Lang.Class({
 
         this._databases = {};
         this._database_langs = {};
+        this._database_qp = {};
+
+        // the prefix store manages stored field -> prefix associations, and
+        // returns unions of unique associations for use in meta databases
+        this._prefix_store = new PrefixStore();
 
         let noneStemmer = new Xapian.Stem();
         noneStemmer.init(null);
@@ -30,16 +49,6 @@ const DatabaseManager = Lang.Class({
         // setup the meta database, which will let us query all database via
         // the query_all method
         this._meta_db = this._new_meta_db();
-
-        this._query_parser = new Xapian.QueryParser();
-        this._query_parser.set_stemming_strategy(Xapian.StemStrategy.STEM_SOME);
-
-        // setup the QueryParser so that it recognizes the standard Xapian
-        // prefixes (read http://xapian.org/docs/omega/termprefixes.html)
-        STANDARD_PREFIXES.forEach(function (prefix) {
-            this._query_parser.add_prefix(prefix, prefix);
-        }.bind(this));
-        this._query_parser.add_boolean_prefix('Q', 'Q', false);
     },
 
     // Returns boolean for if the manager has a database indexed at index_name
@@ -89,8 +98,36 @@ const DatabaseManager = Lang.Class({
             throw ERR_UNSUPPORTED_LANG;
         }
 
+        // create a queryparser for this particular database, stemming by its
+        // registered language
+        let qp = new Xapian.QueryParser();
+        qp.set_stemming_strategy(Xapian.StemStrategy.STEM_SOME);
+        qp.set_stemmer(this._stemmers[lang]);
+        qp.set_database(xapian_db);
+
+        try {
+            // attempt to read the database's custom prefix association metadata
+            let metadata_json = xapian_db.get_metadata(PREFIX_METADATA_KEY);
+            let prefix_metadata = JSON.parse(metadata_json);
+
+            // store the prefix association metadata for this given lang, so
+            // the various meta databases which query over this database can
+            // use its prefixes
+            this._prefix_store.store_prefix_map(lang, prefix_metadata);
+
+            // register the field -> prefix associations for this database's
+            // queryparser
+            this._add_queryparser_prefixes(qp, prefix_metadata);
+        } catch (e) {
+            // if there was an error storing the database's prefixes, log the
+            // error and go with the "default" prefix map in STANDARD_PREFIXES
+            printerr ('Could not register prefixes for database', index_name, e);
+            this._add_queryparser_prefixes(qp, STANDARD_PREFIXES);
+        }
+
         this._databases[index_name] = xapian_db;
         this._database_langs[index_name] = lang;
+        this._database_qp[index_name] = qp;
 
         // if we just overwrote an existing database, we need to build the
         // meta_db from scratch since there's no Xapian::Database remove_db
@@ -123,6 +160,45 @@ const DatabaseManager = Lang.Class({
         return db;
     },
 
+    // returns a new Xapian QueryParser for a given language and associates it
+    // with the given database. The prefixes registered for this queryparser
+    // derive from the PrefixStore's prefix map for the given lang. If lang is
+    // 'all', the PrefixStore aggregates a union of all its known prefixes
+    _new_meta_qp: function (lang, db) {
+        let qp = new Xapian.QueryParser();
+        qp.set_stemming_strategy(Xapian.StemStrategy.STEM_SOME);
+        if (lang === 'all')
+            qp.set_stemmer(this._stemmers.none);
+        else
+            qp.set_stemmer(this._stemmers[lang]);
+        qp.set_database(db);
+
+        if (this._prefixes_by_lang.hasOwnProperty(lang)) {
+            this._add_queryparser_prefixes(qp, this._prefix_store.get(lang));
+        } else {
+            if (lang === 'all') {
+                let all_prefixes = this._prefix_store.get_all();
+                this._add_queryparser_prefixes(all_prefixes);
+            }
+
+            // setup the QueryParser so that it recognizes the standard Xapian
+            // prefixes (read http://xapian.org/docs/omega/termprefixes.html)
+            this._add_queryparser_prefixes(qp, STANDARD_PREFIXES);
+        }
+
+        return qp;
+    },
+
+    // registers the prefixes and booleanPrefixes in prefix_map to qp
+    _add_queryparser_prefixes: function (qp, prefix_map) {
+        prefix_map.prefixes.forEach(function (pair) {
+            qp.add_prefix(pair.field, pair.prefix);
+        });
+        prefix_map.booleanPrefixes.forEach(function (pair) {
+            qp.add_boolean_prefix(pair.field, pair.prefix, false);
+        });
+    },
+
     // Deletes the database indexed at index_name (if any)
     remove_db: function (index_name) {
         if (this.has_db(index_name)) {
@@ -131,6 +207,7 @@ const DatabaseManager = Lang.Class({
             // rebuild meta_db since there's no database remove_db method
             this._meta_db = this._new_meta_db();
             delete this._database_langs[index_name];
+            delete this._database_qp[index_name];
         } else {
             throw ERR_DATABASE_NOT_FOUND;
         }
@@ -146,9 +223,9 @@ const DatabaseManager = Lang.Class({
     // If no such database exists, throw ERR_DATABASE_NOT_FOUND
     query_db: function (index_name, options) {
         if (this.has_db(index_name)) {
-            let lang = this._database_langs[index_name];
             let db = this._databases[index_name];
-            return this._query(db, lang, options);
+            let qp = this._database_qp[index_name];
+            return this._query(db, qp, options);
         }
 
         throw ERR_DATABASE_NOT_FOUND;
@@ -156,14 +233,14 @@ const DatabaseManager = Lang.Class({
 
     query_lang: function (lang, options) {
         let meta_lang_db = this._new_meta_db(lang);
-        return this._query(meta_lang_db, lang, options);
+        let meta_lang_qp = this._new_meta_qp(lang, meta_lang_db);
+        return this._query(meta_lang_db, meta_lang_qp, options);
     },
 
     // Queries all databases
     query_all: function (options) {
-        // default language for _all queries is none
-        let lang = 'none';
-        return this._query(this._meta_db, lang, options);
+        let meta_qp = this._new_meta_qp('all', meta_lang_db);
+        return this._query(this._meta_db, meta_qp, options);
     },
 
     // Checks if the given database is empty (has no documents). Empty databases
@@ -180,7 +257,7 @@ const DatabaseManager = Lang.Class({
     //     numResults: integer number of results being returned
     //     offset: index from which results were gathered
     //     results: array of strings for every result doc, sorted by weight
-    _query: function (db, lang, options) {
+    _query: function (db, qp, options) {
         if (this._db_is_empty(db)) {
             return {
                 numResults: 0,
@@ -189,11 +266,8 @@ const DatabaseManager = Lang.Class({
                 results: []
             }
         }
-        let stemmer = this._stemmers[lang];
 
-        this._query_parser.database = db;
-        this._query_parser.set_stemmer(stemmer);
-        let parsed_query = this._query_parser.parse_query_full(options.q, QUERY_PARSER_FLAGS, '');
+        let parsed_query = qp.parse_query_full(options.q, QUERY_PARSER_FLAGS, '');
 
         let enquire = new Xapian.Enquire({
             database: db
