@@ -173,13 +173,12 @@ const DatabaseManager = Lang.Class({
             qp.set_stemmer(this._stemmers[lang]);
         qp.set_database(db);
 
-        if (this._prefixes_by_lang.hasOwnProperty(lang)) {
+        if (typeof this._prefix_store.get(lang) !== 'undefined') {
             this._add_queryparser_prefixes(qp, this._prefix_store.get(lang));
+        } else if (lang === 'all') {
+            let all_prefixes = this._prefix_store.get_all();
+            this._add_queryparser_prefixes(qp, all_prefixes);
         } else {
-            if (lang === 'all') {
-                let all_prefixes = this._prefix_store.get_all();
-                this._add_queryparser_prefixes(all_prefixes);
-            }
 
             // setup the QueryParser so that it recognizes the standard Xapian
             // prefixes (read http://xapian.org/docs/omega/termprefixes.html)
@@ -239,7 +238,7 @@ const DatabaseManager = Lang.Class({
 
     // Queries all databases
     query_all: function (options) {
-        let meta_qp = this._new_meta_qp('all', meta_lang_db);
+        let meta_qp = this._new_meta_qp('all', this._meta_db);
         return this._query(this._meta_db, meta_qp, options);
     },
 

@@ -159,7 +159,7 @@ function main () {
             let results;
             if (META_DATABASE_NAMES.indexOf(index_name) !== -1) {
                 if (index_name === '_all') {
-                    results = manager.query_all(q, options);
+                    results = manager.query_all(options);
                 } else {
                     let lang = index_name.slice(1); // index_name === '_{lang}'
                     results = manager.query_lang(lang, options);
