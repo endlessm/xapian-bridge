@@ -83,7 +83,12 @@ const PrefixStore = Lang.Class({
             all_prefixes.booleanPrefixes = all_prefixes.booleanPrefixes.concat(uniqueBooleanPrefixes);
         }.bind(this));
 
-        return all_prefixes;
+        if (all_prefixes.prefixes.length === 0
+            && all_prefixes.booleanPrefixes.length === 0) {
+            return undefined;
+        } else {
+            return all_prefixes;
+        }
     },
 
     // return whether a field -> prefix pair exists in prefix_list

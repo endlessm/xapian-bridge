@@ -173,17 +173,18 @@ const DatabaseManager = Lang.Class({
             qp.set_stemmer(this._stemmers[lang]);
         qp.set_database(db);
 
-        if (typeof this._prefix_store.get(lang) !== 'undefined') {
-            this._add_queryparser_prefixes(qp, this._prefix_store.get(lang));
-        } else if (lang === 'all') {
-            let all_prefixes = this._prefix_store.get_all();
-            this._add_queryparser_prefixes(qp, all_prefixes);
+        let prefix_map;
+        if (lang === 'all') {
+            prefix_map = this._prefix_store.get_all();
         } else {
-
-            // setup the QueryParser so that it recognizes the standard Xapian
-            // prefixes (read http://xapian.org/docs/omega/termprefixes.html)
-            this._add_queryparser_prefixes(qp, STANDARD_PREFIXES);
+            prefix_map = this._prefix_store.get(lang);            
         }
+
+        if (typeof prefix_map === 'undefined') {
+            prefix_map = STANDARD_PREFIXES;
+        }
+
+        this._add_queryparser_prefixes(qp, prefix_map);
 
         return qp;
     },
