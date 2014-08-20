@@ -19,6 +19,7 @@ const STANDARD_PREFIXES = {
     ]
 }
 const PREFIX_METADATA_KEY = 'XbPrefixes';
+const STOPWORDS_METADATA_KEY = 'XbStopwords';
 
 const ERR_DATABASE_NOT_FOUND = 0;
 const ERR_INVALID_PATH = 1;
@@ -68,6 +69,40 @@ const DatabaseManager = Lang.Class({
         throw ERR_DATABASE_NOT_FOUND;
     },
 
+    _register_prefixes: function (xapian_db, qp, lang, index_name) {
+        try {
+            // attempt to read the database's custom prefix association metadata
+            let metadata_json = xapian_db.get_metadata(PREFIX_METADATA_KEY);
+            let prefix_metadata = JSON.parse(metadata_json);
+
+            // store the prefix association metadata for this given lang, so
+            // the various meta databases which query over this database can
+            // use its prefixes
+            this._prefix_store.store_prefix_map(lang, prefix_metadata);
+
+            // register the field -> prefix associations for this database's
+            // queryparser
+            this._add_queryparser_prefixes(qp, prefix_metadata);
+        } catch (e) {
+            // if there was an error storing the database's prefixes, log the
+            // error and go with the "default" prefix map in STANDARD_PREFIXES
+            printerr ('Could not register prefixes for database', index_name, e);
+            this._add_queryparser_prefixes(qp, STANDARD_PREFIXES);
+        }
+    },
+
+    _register_stopwords: function (xapian_db, qp, index_name) {
+        try {
+            let stopper = new Xapian.SimpleStopper();
+            let stopwords_json = xapian_db.get_metadata(STOPWORDS_METADATA_KEY);
+            let stopwords_data = JSON.parse(stopwords_json);
+            stopwords_data.map(stopper.add_word);
+            qp.set_stopper(stopper);
+        } catch (e) {
+            printerr('Could not add stop words for database', index_name, e);
+        }
+    },
+
     // Creates a new XapianDatabase with path, and indexes it by index_name.
     // Overwrites any existing database with the same name
     // If creation fails, throws ERR_INVALID_PATH
@@ -104,26 +139,8 @@ const DatabaseManager = Lang.Class({
         qp.set_stemming_strategy(Xapian.StemStrategy.STEM_SOME);
         qp.set_stemmer(this._stemmers[lang]);
         qp.set_database(xapian_db);
-
-        try {
-            // attempt to read the database's custom prefix association metadata
-            let metadata_json = xapian_db.get_metadata(PREFIX_METADATA_KEY);
-            let prefix_metadata = JSON.parse(metadata_json);
-
-            // store the prefix association metadata for this given lang, so
-            // the various meta databases which query over this database can
-            // use its prefixes
-            this._prefix_store.store_prefix_map(lang, prefix_metadata);
-
-            // register the field -> prefix associations for this database's
-            // queryparser
-            this._add_queryparser_prefixes(qp, prefix_metadata);
-        } catch (e) {
-            // if there was an error storing the database's prefixes, log the
-            // error and go with the "default" prefix map in STANDARD_PREFIXES
-            printerr ('Could not register prefixes for database', index_name, e);
-            this._add_queryparser_prefixes(qp, STANDARD_PREFIXES);
-        }
+        this._register_prefixes(xapian_db, qp, lang, index_name);
+        this._register_stopwords(xapian_db, qp, index_name);
 
         this._databases[index_name] = xapian_db;
         this._database_langs[index_name] = lang;
