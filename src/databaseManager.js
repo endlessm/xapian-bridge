@@ -96,8 +96,10 @@ const DatabaseManager = Lang.Class({
             let stopper = new Xapian.SimpleStopper();
             let stopwords_json = xapian_db.get_metadata(STOPWORDS_METADATA_KEY);
             let stopwords_data = JSON.parse(stopwords_json);
-            stopwords_data.map(stopper.add_word);
-            qp.set_stopper(stopper);
+            stopwords_data.forEach(function (word) {
+                stopper.add(word);
+            });
+            qp.stopper = stopper;
         } catch (e) {
             printerr('Could not add stop words for database', index_name, e);
         }
