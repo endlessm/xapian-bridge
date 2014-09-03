@@ -5,7 +5,8 @@ const Xapian = imports.gi.Xapian;
 const PrefixStore = imports.prefixStore.PrefixStore;
 
 const QUERY_PARSER_FLAGS = Xapian.QueryParserFeature.DEFAULT
-                         | Xapian.QueryParserFeature.WILDCARD;
+                         | Xapian.QueryParserFeature.WILDCARD
+                         | Xapian.QueryParserFeature.SPELLING_CORRECTION;
 
 // TODO: these should be configurable
 const STANDARD_PREFIXES = {
@@ -272,6 +273,24 @@ const DatabaseManager = Lang.Class({
         return db.get_uuid().length === 0;
     },
 
+    _fetch_results: function (enquire, parsed_query, offset, limit) {
+        enquire.set_query(parsed_query, parsed_query.get_length());
+        let matches = enquire.get_mset(offset, limit);
+        let iter = matches.get_begin();
+        let docs = [];
+
+        while (iter.next()) {
+            docs.push(iter.get_document().get_data());
+        }
+
+        return {
+            numResults: docs.length,
+            offset: offset,
+            results: docs.map(JSON.parse),
+            query: parsed_query
+        };
+    },
+
     // Queries db with the given parameters, and returns an object with:
     //     numResults: integer number of results being returned
     //     offset: index from which results were gathered
@@ -287,6 +306,7 @@ const DatabaseManager = Lang.Class({
         }
 
         let parsed_query = qp.parse_query_full(options.q, QUERY_PARSER_FLAGS, '');
+        let corrected_query = qp.get_corrected_query_string();
 
         let enquire = new Xapian.Enquire({
             database: db
@@ -301,19 +321,13 @@ const DatabaseManager = Lang.Class({
             enquire.set_collapse_key(options.collapse_key);
         }
 
-        enquire.set_query(parsed_query, parsed_query.get_length());
-        let matches = enquire.get_mset(options.offset, options.limit);
-        let iter = matches.get_begin();
-        let docs = [];
-
-        while (iter.next()) {
-            docs.push(iter.get_document().get_data());
+        let retval = this._fetch_results(enquire, parsed_query, options.offset, options.limit);
+        // corrected_query will be the empty string if no correction is found.
+        if (corrected_query.length > 0) {
+            let corrected_parsed_query = qp.parse_query_full(corrected_query, QUERY_PARSER_FLAGS, '');
+            retval.spellCorrectedResults = this._fetch_results(enquire, corrected_parsed_query, options.offset, options.limit);
         }
 
-        return {
-            numResults: docs.length,
-            offset: options.offset,
-            results: docs.map(JSON.parse)
-        };
+        return retval;
     }
 });
