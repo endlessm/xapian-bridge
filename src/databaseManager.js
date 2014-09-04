@@ -19,6 +19,17 @@ const STANDARD_PREFIXES = {
         {field: 'id', prefix: 'Q'}, 
     ]
 }
+
+// Mapping from ISO 639 lang codes to
+// Xapian's internal language strings
+const LANG_CODE_MAP = {
+    'ar': 'arabic',
+    'es': 'spanish',
+    'en': 'english',
+    'fr': 'french',
+    'pt': 'portuguese',
+}
+
 const PREFIX_METADATA_KEY = 'XbPrefixes';
 const STOPWORDS_METADATA_KEY = 'XbStopwords';
 
@@ -126,8 +137,9 @@ const DatabaseManager = Lang.Class({
         let stemmer;
         try {
             if (typeof this._stemmers[lang] === 'undefined') {
+                let lang_supported = Xapian.Stem.get_available_languages().indexOf(LANG_CODE_MAP[lang]) !== -1;
                 stemmer = new Xapian.Stem({
-                    language: lang
+                    language: lang_supported ? lang : 'none'
                 });
                 stemmer.init(null);
                 this._stemmers[lang] = stemmer;
