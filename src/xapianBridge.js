@@ -150,6 +150,8 @@ function main () {
             limit: parseInt(query.limit),
             offset: parseInt(query.offset),
             cutoff: parseFloat(query.cutoff),
+            sort_by: query.sortBy,
+            order: query.order,
         };
         if (isNaN(options.limit) || isNaN(options.offset)) {
             return res(msg, Soup.Status.BAD_REQUEST);
