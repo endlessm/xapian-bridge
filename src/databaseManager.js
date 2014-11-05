@@ -325,12 +325,14 @@ const DatabaseManager = Lang.Class({
         });
         enquire.init(null);
 
-        if (!isNaN(options.cutoff)) {
-            enquire.set_cutoff(options.cutoff);
-        }
-
         if (typeof options.collapse_key !== 'undefined') {
             enquire.set_collapse_key(options.collapse_key);
+        }
+
+        if (typeof options.sort_by !== 'undefined') {
+            enquire.set_sort_by_value(options.sort_by, options.order === 'desc');
+        } else if (!isNaN(options.cutoff)) {
+            enquire.set_cutoff(options.cutoff);
         }
 
         let retval = this._fetch_results(enquire, parsed_query, options.offset, options.limit);
