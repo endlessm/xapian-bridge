@@ -1,16 +1,8 @@
 # Run this script on a clean source checkout to get ready for building.
 
-FILE_MUST_EXIST=src/xapianBridge.js
-
 test -n "$srcdir" || srcdir=`dirname "$0"`
 test -n "$srcdir" || srcdir=.
 olddir=`pwd`
-
-cd $srcdir
-test -f $FILE_MUST_EXIST || {
-    echo "You must run this script in the top-level checkout directory"
-    exit 1
-}
 
 # Checkout and update submodules
 git submodule init

@@ -16,45 +16,32 @@ EXTRA_DIST = README.md
 
 # # # INSTALL RULES # # #
 
-# Common substitution script for generated files
-do_subst = sed \
-	-e 's|@pkglibdir[@]|$(pkglibdir)|g' \
-	-e 's|@pkgdatadir[@]|$(pkgdatadir)|g' \
-	-e 's|@localstatedir[@]|$(localstatedir)|g' \
+bin_PROGRAMS = xapian-bridge
+
+xapian_bridge_SOURCES = \
+	src/xb-main.c \
+	src/xb-database-cache.h \
+	src/xb-database-cache.c \
+	src/xb-database-manager.h \
+	src/xb-database-manager.c \
+	src/xb-error.h \
+	src/xb-error.c \
+	src/xb-prefix-store.h \
+	src/xb-prefix-store.c \
+	src/xb-routed-server.h \
+	src/xb-routed-server.c \
+	src/xb-router.h \
+	src/xb-router.c \
 	$(NULL)
 
-xapian-bridge: xapian-bridge.in Makefile
-	rm -f $@ $@.tmp && \
-	$(do_subst) $< >$@.tmp && \
-	chmod +x $@.tmp && \
-	mv $@.tmp $@
-
-bin_SCRIPTS = xapian-bridge
-CLEANFILES += xapian-bridge
-EXTRA_DIST += xapian-bridge.in
-
-# Generate a src/config.js file with installed directory locations
-src/config.js: src/config.js.in Makefile
-	$(AM_V_GEN)mkdir -p src && \
-	rm -f $@ $@.tmp && \
-	$(do_subst) $< >$@.tmp && \
-	mv $@.tmp $@
-
-CLEANFILES += src/config.js
-EXTRA_DIST += src/config.js.in 
-
-js_sources = \
-	src/config.js \
-	src/databaseCache.js \
-	src/databaseManager.js \
-	src/prefixStore.js \
-	src/router.js \
-	src/routedServer.js \
-	src/xapianBridge.js \
+AM_CPPFLAGS = \
+	-DLOCALSTATEDIR=\""$(localstatedir)"\" \
+	$(XAPIAN_BRIDGE_CFLAGS) \
 	$(NULL)
 
-EXTRA_DIST += $(js_sources)
-nobase_pkgdata_DATA = $(js_sources)
+LDADD = \
+	$(XAPIAN_BRIDGE_LIBS) \
+	$(NULL)
 
 # # # TESTS # # #
 
