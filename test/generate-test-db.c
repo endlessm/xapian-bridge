@@ -1,42 +1,43 @@
 #include <xapian-glib.h>
 #include <stdlib.h>
 
-int
-main (int argc,
-      char **argv)
+#define N_DOCUMENTS 5
+
+static void
+add_document (XapianWritableDatabase *db)
 {
-  XapianWritableDatabase *db;
   XapianDocument *doc;
   gboolean res;
   GError *error = NULL;
-
-  db = xapian_writable_database_new ("test/testdb", XAPIAN_DATABASE_ACTION_CREATE, &error);
-  g_assert_nonnull (db);
-  g_assert_no_error (error);
-
+  
   doc = xapian_document_new ();
   g_assert_nonnull (doc);
 
   xapian_document_set_data (doc, "{ 'foo': 'bar' }");
   xapian_document_add_term (doc, "asd");
-  xapian_document_add_term (doc, "saq");
+  xapian_document_add_term (doc, "a");
 
   res = xapian_writable_database_add_document (db, doc, NULL, &error);
   g_assert_true (res);
   g_assert_no_error (error);
   g_object_unref (doc);
+}
 
-  doc = xapian_document_new ();
-  g_assert_nonnull (doc);
+int
+main (int argc,
+      char **argv)
+{
+  XapianWritableDatabase *db;
+  gboolean res;
+  GError *error = NULL;
+  gint idx;
 
-  xapian_document_set_data (doc, "{ 'foo': 'bar' }");
-  xapian_document_add_term (doc, "abc");
-  xapian_document_add_term (doc, "lala");
-
-  res = xapian_writable_database_add_document (db, doc, NULL, &error);
-  g_assert_true (res);
+  db = xapian_writable_database_new ("test/testdb", XAPIAN_DATABASE_ACTION_CREATE_OR_OVERWRITE, &error);
+  g_assert_nonnull (db);
   g_assert_no_error (error);
-  g_object_unref (doc);
+
+  for (idx = 0; idx < N_DOCUMENTS; idx++)
+    add_document (db);
 
   res = xapian_writable_database_commit (db, &error);
   g_assert_true (res);
