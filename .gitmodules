@@ -1,3 +1,0 @@
-[submodule "test/jasmine"]
-	path = test/jasmine
-	url = git@github.com:endlessm/eos-jasmine
