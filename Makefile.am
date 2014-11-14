@@ -18,6 +18,26 @@ generate-dbs: generate-test-db
 	$(top_builddir)/generate-test-db
 MAINTAINERCLEANFILES = test/testdb
 
+# Specify a non-system dir for systemd units at distcheck
+DISTCHECK_CONFIGURE_FLAGS = \
+	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir) \
+	$(NULL)
+
+data/xapian-bridge.service: data/xapian-bridge.service.in Makefile
+	$(MKDIR_P) $(top_builddir)/data
+	$(AM_V_GEN) sed -e 's|@bindir[@]|$(bindir)|g' $< > $@
+CLEANFILES += data/xapian-bridge.service
+EXTRA_DIST += \
+	data/xapian-bridge.service.in \
+	data/xapian-bridge.socket \
+	$(NULL)
+
+systemdservicedir = $(systemdsystemunitdir)
+systemdservice_DATA = \
+	data/xapian-bridge.service \
+	data/xapian-bridge.socket \
+	$(NULL)
+
 # # # INSTALL RULES # # #
 
 bin_PROGRAMS = xapian-bridge

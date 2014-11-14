@@ -76,6 +76,14 @@ PKG_CHECK_MODULES(XAPIAN_BRIDGE, [gio-2.0 >= glib_minver
                                   libsoup-2.4
                                   xapian-glib-1.0])
 
+# systemd units
+#--------------
+AC_ARG_WITH([systemdsystemunitdir],
+            AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
+            [],
+            [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+
 AC_CACHE_SAVE
 
 # Output
