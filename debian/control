@@ -4,13 +4,10 @@ Maintainer: Will Greenberg <will@endlessm.com>
 Build-Depends: autotools-dev,
                debhelper (>= 8.0.0),
                dh-systemd (>= 1.5),
-               gir1.2-glib-2.0,
-               gir1.2-gtk-3.0,
-               gir1.2-soup-2.4,
+               libglib2.0-dev,
+               libsoup2.4-dev,
                gir1.2-xapian-1.0,
-               gjs,
-               gobject-introspection (>= 0.9.7),
-               libgirepository1.0-dev
+               systemd
 Standards-Version: 3.9.4
 Section: non-free/libs
 Homepage: http://www.endlessm.com
@@ -18,11 +15,7 @@ Homepage: http://www.endlessm.com
 Package: xapian-bridge
 Section: non-free/libdevel
 Architecture: any
-Depends: gjs,
-         gir1.2-glib-2.0,
-         gir1.2-soup-2.4,
-         gir1.2-xapian-1.0,
-         ${misc:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
 Description: Exposes Xapian API via HTTP
- Uses gjs and libsoup to expose the xapian api over
- http.
+ Uses libsoup to expose the xapian api over http.
