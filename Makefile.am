@@ -14,71 +14,153 @@ DISTCLEANFILES =
 # Extra files to distribute in the tarball
 EXTRA_DIST = README.md
 
+generate-dbs: generate-test-db
+	$(top_builddir)/generate-test-db
+MAINTAINERCLEANFILES = test/testdb
+
+# Specify a non-system dir for systemd units at distcheck
+DISTCHECK_CONFIGURE_FLAGS = \
+	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir) \
+	$(NULL)
+
+data/xapian-bridge.service: data/xapian-bridge.service.in Makefile
+	$(MKDIR_P) $(top_builddir)/data
+	$(AM_V_GEN) sed -e 's|@bindir[@]|$(bindir)|g' $< > $@
+CLEANFILES += data/xapian-bridge.service
+EXTRA_DIST += \
+	data/xapian-bridge.service.in \
+	data/xapian-bridge.socket \
+	$(NULL)
+
+systemdservicedir = $(systemdsystemunitdir)
+systemdservice_DATA = \
+	data/xapian-bridge.service \
+	data/xapian-bridge.socket \
+	$(NULL)
+
 # # # INSTALL RULES # # #
 
-# Common substitution script for generated files
-do_subst = sed \
-	-e 's|@pkglibdir[@]|$(pkglibdir)|g' \
-	-e 's|@pkgdatadir[@]|$(pkgdatadir)|g' \
-	-e 's|@localstatedir[@]|$(localstatedir)|g' \
+bin_PROGRAMS = xapian-bridge
+
+xapian_bridge_SOURCES = \
+	src/xb-main.c \
+	src/xb-database-cache.h \
+	src/xb-database-cache.c \
+	src/xb-database-manager.h \
+	src/xb-database-manager.c \
+	src/xb-error.h \
+	src/xb-error.c \
+	src/xb-prefix-store.h \
+	src/xb-prefix-store.c \
+	src/xb-routed-server.h \
+	src/xb-routed-server.c \
+	src/xb-router.h \
+	src/xb-router.c \
 	$(NULL)
 
-xapian-bridge: xapian-bridge.in Makefile
-	rm -f $@ $@.tmp && \
-	$(do_subst) $< >$@.tmp && \
-	chmod +x $@.tmp && \
-	mv $@.tmp $@
-
-bin_SCRIPTS = xapian-bridge
-CLEANFILES += xapian-bridge
-EXTRA_DIST += xapian-bridge.in
-
-# Generate a src/config.js file with installed directory locations
-src/config.js: src/config.js.in Makefile
-	$(AM_V_GEN)mkdir -p src && \
-	rm -f $@ $@.tmp && \
-	$(do_subst) $< >$@.tmp && \
-	mv $@.tmp $@
-
-CLEANFILES += src/config.js
-EXTRA_DIST += src/config.js.in 
-
-js_sources = \
-	src/config.js \
-	src/databaseCache.js \
-	src/databaseManager.js \
-	src/prefixStore.js \
-	src/router.js \
-	src/routedServer.js \
-	src/xapianBridge.js \
+AM_CPPFLAGS = \
+	-DLOCALSTATEDIR=\""$(localstatedir)"\" \
+	$(XAPIAN_BRIDGE_CFLAGS) \
 	$(NULL)
 
-EXTRA_DIST += $(js_sources)
-nobase_pkgdata_DATA = $(js_sources)
+LDADD = \
+	$(XAPIAN_BRIDGE_LIBS) \
+	$(NULL)
 
 # # # TESTS # # #
-
-# Run tests when running 'make check'
-# TESTS = test
-xapian_bridge_js_tests = \
-	test/unit/testCache.js \
-	test/unit/testPrefixStore.js \
-	test/unit/testRouter.js \
+TESTS_ENVIRONMENT = \
+	export G_TEST_SRCDIR=$(abs_srcdir); \
+	export G_TEST_BUILDDIR=$(abs_builddir); \
 	$(NULL)
 
-EXTRA_DIST += \
-	$(xapian_bridge_js_tests) \
+noinst_PROGRAMS = \
+	generate-test-db \
+	test-daemon \
+	test-database-cache \
+	test-database-manager \
+	test-prefix-store \
+	test-router \
 	$(NULL)
+
+TEST_CPPFLAGS = \
+	-I$(top_srcdir)/src \
+	$(XAPIAN_BRIDGE_CFLAGS) \
+	$(NULL)
+
+TEST_LIBS = \
+	$(XAPIAN_BRIDGE_LIBS) \
+	$(NULL)
+
+generate_test_db_SOURCES = \
+	test/generate-test-db.c \
+	$(NULL)
+generate_test_db_CPPFLAGS = $(TEST_CPPFLAGS)
+generate_test_db_LDADD = $(TEST_LIBS)
+
+test_router_SOURCES = \
+	test/test-router.c \
+	src/xb-router.h \
+	src/xb-router.c \
+	$(NULL)
+test_router_CPPFLAGS = $(TEST_CPPFLAGS)
+test_router_LDADD = $(TEST_LIBS)
+
+test_prefix_store_SOURCES = \
+	test/test-prefix-store.c \
+	test/test-util.h \
+	test/test-util.c \
+	src/xb-prefix-store.h \
+	src/xb-prefix-store.c \
+	$(NULL)
+test_prefix_store_CPPFLAGS = $(TEST_CPPFLAGS)
+test_prefix_store_LDADD = $(TEST_LIBS)
+
+test_database_cache_SOURCES = \
+	test/test-database-cache.c \
+	test/test-util.h \
+	test/test-util.c \
+	src/xb-database-cache.h \
+	src/xb-database-cache.c \
+	$(NULL)
+test_database_cache_CPPFLAGS = \
+	$(TEST_CPPFLAGS) \
+	-DLOCALSTATEDIR=\""$(localstatedir)"\" \
+	$(NULL)
+test_database_cache_LDADD = $(TEST_LIBS)
+
+test_database_manager_SOURCES = \
+	test/test-database-manager.c \
+	test/test-util.h \
+	test/test-util.c \
+	src/xb-database-manager.h \
+	src/xb-database-manager.c \
+	src/xb-error.h \
+	src/xb-error.c \
+	src/xb-prefix-store.h \
+	src/xb-prefix-store.c \
+	$(NULL)
+test_database_manager_CPPFLAGS = $(TEST_CPPFLAGS)
+test_database_manager_LDADD = $(TEST_LIBS)
+
+test_daemon_SOURCES = \
+	test/test-daemon.c \
+	test/test-util.h \
+	test/test-util.c \
+	$(NULL)
+test_daemon_CPPFLAGS = $(TEST_CPPFLAGS)
+test_daemon_LDADD = $(TEST_LIBS)
 
 # Run tests when running 'make check'
 TESTS = \
-	$(xapian_bridge_js_tests) \
+	test-daemon \
+	test-database-cache \
+	test-database-manager \
+	test-prefix-store \
+	test-router \
 	$(NULL)
-TEST_EXTENSIONS = .js
 
-# Jasmine support for the tests
-JASMINE_SUBMODULE_PATH = $(top_srcdir)/test/jasmine
-AM_JS_LOG_FLAGS = \
-	--include-path=$(top_srcdir)/src 
+EXTRA_DIST += \
+	test/testdb \
+	$(NULL)
 
-include $(JASMINE_SUBMODULE_PATH)/Makefile-jasmine.am.inc
+.PHONY: generate-dbs

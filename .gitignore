@@ -1,8 +1,14 @@
 # Build products
+generate-test-db
+test-daemon
+test-database-cache
+test-database-manager
+test-prefix-store
+test-router
 xapian-bridge
-src/config.js
+data/xapian-bridge.service
 
-# Autotools/Gettext droppings
+# Autotools/Gettext droppings and other build artifacts
 .deps
 .libs
 Makefile
@@ -10,6 +16,7 @@ Makefile.in
 stamp*
 *.stamp
 *.log
+*.o
 *.trs
 /ABOUT-NLS
 /aclocal.m4
@@ -30,3 +37,6 @@ stamp*
 /m4/libtool.m4
 /missing
 /test-driver
+
+# Backup files
+*~

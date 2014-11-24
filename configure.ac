@@ -62,17 +62,27 @@ AC_CACHE_SAVE
 # Required build tools
 # --------------------
 # Make sure we can create directory hierarchies
+AC_PROG_MKDIR_P
 AC_PROG_LIBTOOL
+PKG_PROG_PKG_CONFIG
 
 AC_CACHE_SAVE
 
 # Required libraries
 # ------------------
-EOS_CHECK_GJS_GIR([GLib], [2.0])
-EOS_CHECK_GJS_GIR([GObject], [2.0])
-EOS_CHECK_GJS_GIR([Soup], [2.4])
-EOS_CHECK_GJS_GIR_API([Soup], [Server.prototype.listen_fd])
-EOS_CHECK_GJS_GIR([Xapian], [1.0])
+m4_define(glib_minver, 2.40.0)
+PKG_CHECK_MODULES(XAPIAN_BRIDGE, [gio-2.0 >= glib_minver
+                                  json-glib-1.0
+                                  libsoup-2.4
+                                  xapian-glib-1.0])
+
+# systemd units
+#--------------
+AC_ARG_WITH([systemdsystemunitdir],
+            AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
+            [],
+            [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
 
 AC_CACHE_SAVE
 
