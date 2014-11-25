@@ -5,6 +5,7 @@ Build-Depends: autotools-dev,
                debhelper (>= 8.0.0),
                dh-systemd (>= 1.5),
                libglib2.0-dev,
+               libjson-glib-dev,
                libsoup2.4-dev,
                gir1.2-xapian-1.0,
                systemd
