@@ -189,21 +189,14 @@ server_put_index_name_callback (GHashTable *params,
   GError *error = NULL;
   gchar *lang_index_name;
 
-  index_name = g_hash_table_lookup (params, "index_name");
-  g_assert (index_name != NULL);
-
   if (query == NULL)
     {
       server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
       return;
     }
 
-  path = g_hash_table_lookup (query, "path");
-  if (path == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
+  index_name = g_hash_table_lookup (params, "index_name");
+  g_assert (index_name != NULL);
 
   if (g_list_find_custom (xb->meta_database_names, index_name, (GCompareFunc) g_strcmp0))
     {
@@ -218,6 +211,13 @@ server_put_index_name_callback (GHashTable *params,
   lang = g_hash_table_lookup (query, "lang");
   if (lang == NULL)
     lang = "none";
+
+  path = g_hash_table_lookup (query, "path");
+  if (path == NULL)
+    {
+      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      return;
+    }
 
   /* Create the XapianDatabase and add it to the manager */
   xb_database_manager_create_db (xb->manager, index_name, path, lang, &error);
