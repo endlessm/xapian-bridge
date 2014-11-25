@@ -185,6 +185,7 @@ server_put_index_name_callback (GHashTable *params,
   XapianBridge *xb = user_data;
   const gchar *index_name;
   const gchar *path, *lang;
+  gchar *unescaped_path;
   GHashTable *headers;
   GError *error = NULL;
   gchar *lang_index_name;
@@ -220,7 +221,8 @@ server_put_index_name_callback (GHashTable *params,
     }
 
   /* Create the XapianDatabase and add it to the manager */
-  xb_database_manager_create_db (xb->manager, index_name, path, lang, &error);
+  unescaped_path = g_uri_unescape_string (path, NULL);
+  xb_database_manager_create_db (xb->manager, index_name, unescaped_path, lang, &error);
   if (error != NULL)
     {
       if (g_error_matches (error, XB_ERROR, XB_ERROR_INVALID_PATH) ||
@@ -231,11 +233,12 @@ server_put_index_name_callback (GHashTable *params,
 
       g_critical ("Unable to create database: %s", error->message);
       g_error_free (error);
+      g_free (unescaped_path);
       return;
     }
 
   /* Add index_name and path to the cache */
-  xb_database_cache_set_entry (xb->cache, index_name, path, lang);
+  xb_database_cache_set_entry (xb->cache, index_name, unescaped_path, lang);
 
   /* Since a database now exists for lang, ensure a meta database name
    * for that language also exists.
@@ -245,6 +248,7 @@ server_put_index_name_callback (GHashTable *params,
     xb->meta_database_names = g_list_prepend (xb->meta_database_names, lang_index_name);
 
   server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
+  g_free (unescaped_path);
 }
 
 /* DELETE /:index_name - remove the xapian database at index_name
