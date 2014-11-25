@@ -9,6 +9,8 @@ gchar *test_generate_json (JsonObject *object,
 void test_clear_dir (const gchar *path);
 
 gchar *test_get_invalid_db_path (void);
+gchar *test_get_invalid_db_path_for_query (void);
 gchar *test_get_sample_db_path (void);
+gchar *test_get_sample_db_path_for_query (void);
 
 #endif /* __TEST_UTIL_H__ */

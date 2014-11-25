@@ -286,7 +286,7 @@ get_sample_db_query (void)
 {
   gchar *path, *retval;
 
-  path = test_get_sample_db_path ();
+  path = test_get_sample_db_path_for_query ();
   retval = g_strdup_printf ("path=%s", path);
   g_free (path);
 
@@ -298,7 +298,7 @@ get_lang_db_query (const gchar *lang)
 {
   gchar *path, *retval;
 
-  path = test_get_sample_db_path ();
+  path = test_get_sample_db_path_for_query ();
   retval = g_strdup_printf ("path=%s&lang=%s", path, lang);
   g_free (path);
 

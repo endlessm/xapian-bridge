@@ -21,6 +21,30 @@ test_get_invalid_db_path (void)
                                 NULL);
 }
 
+gchar *
+test_get_sample_db_path_for_query (void)
+{
+  gchar *path, *escaped;
+
+  path = test_get_sample_db_path ();
+  escaped = g_uri_escape_string (path, NULL, FALSE);
+  g_free (path);
+
+  return escaped;
+}
+
+gchar *
+test_get_invalid_db_path_for_query (void)
+{
+  gchar *path, *escaped;
+
+  path = test_get_invalid_db_path ();
+  escaped = g_uri_escape_string (path, NULL, FALSE);
+  g_free (path);
+
+  return escaped;
+}
+
 void
 test_clear_dir (const gchar *path)
 {
