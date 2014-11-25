@@ -225,15 +225,11 @@ server_put_index_name_callback (GHashTable *params,
     {
       if (g_error_matches (error, XB_ERROR, XB_ERROR_INVALID_PATH) ||
           g_error_matches (error, XB_ERROR, XB_ERROR_UNSUPPORTED_LANG))
-        {
-          server_send_response (message, SOUP_STATUS_FORBIDDEN, NULL, NULL);
-        }
+        server_send_response (message, SOUP_STATUS_FORBIDDEN, NULL, NULL);
       else
-        {
-          server_send_response (message, SOUP_STATUS_INTERNAL_SERVER_ERROR, NULL, NULL);
-          g_critical ("Unable to create database: %s", error->message);
-        }
+        server_send_response (message, SOUP_STATUS_INTERNAL_SERVER_ERROR, NULL, NULL);
 
+      g_critical ("Unable to create database: %s", error->message);
       g_error_free (error);
       return;
     }
