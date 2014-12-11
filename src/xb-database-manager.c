@@ -18,7 +18,6 @@
 
 #include "xb-database-manager.h"
 #include "xb-error.h"
-#include "xb-prefix-store.h"
 
 #include <xapian-glib.h>
 
@@ -78,8 +77,6 @@ typedef struct {
   GHashTable *databases;
   /* string lang_name => object XapianStem */
   GHashTable *stemmers;
-
-  XbPrefixStore *prefix_store;
 } XbDatabaseManagerPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (XbDatabaseManager, xb_database_manager, G_TYPE_OBJECT)
@@ -165,8 +162,6 @@ xb_database_manager_finalize (GObject *object)
   g_clear_pointer (&priv->databases, g_hash_table_unref);
   g_clear_pointer (&priv->stemmers, g_hash_table_unref);
 
-  g_clear_object (&priv->prefix_store);
-
   G_OBJECT_CLASS (xb_database_manager_parent_class)->finalize (object);
 }
 
@@ -187,11 +182,6 @@ xb_database_manager_init (XbDatabaseManager *self)
 
   priv->databases = g_hash_table_new_full (g_str_hash, g_str_equal,
 					   g_free, (GDestroyNotify) database_payload_free);
-
-  /* The prefix store manages stored field -> prefix associations, and
-   * returns unions of unique associations for use in meta databases
-   */
-  priv->prefix_store = xb_prefix_store_new ();
 }
 
 /* Returns whether the manager has a database at path */
@@ -255,7 +245,6 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
                                        const gchar *lang,
 				       const gchar *path)
 {
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   gchar *metadata_json;
   GError *error = NULL;
   JsonParser *parser = NULL;
@@ -285,12 +274,8 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
    */
   root = json_parser_get_root (parser);
   if (root != NULL)
-    {
-      xb_prefix_store_store_prefix_map (priv->prefix_store, lang,
-                                        json_node_get_object (root));
-      xb_database_manager_add_queryparser_prefixes (self, query_parser,
-                                                    json_node_get_object (root));
-    }
+    xb_database_manager_add_queryparser_prefixes (self, query_parser,
+						  json_node_get_object (root));
 
  out:
   /* If there was an error, just use the "standard" prefix map */

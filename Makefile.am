@@ -48,8 +48,6 @@ xapian_bridge_SOURCES = \
 	src/xb-database-manager.c \
 	src/xb-error.h \
 	src/xb-error.c \
-	src/xb-prefix-store.h \
-	src/xb-prefix-store.c \
 	src/xb-routed-server.h \
 	src/xb-routed-server.c \
 	src/xb-router.h \
@@ -75,7 +73,6 @@ noinst_PROGRAMS = \
 	generate-test-db \
 	test-daemon \
 	test-database-manager \
-	test-prefix-store \
 	test-router \
 	$(NULL)
 
@@ -102,16 +99,6 @@ test_router_SOURCES = \
 test_router_CPPFLAGS = $(TEST_CPPFLAGS)
 test_router_LDADD = $(TEST_LIBS)
 
-test_prefix_store_SOURCES = \
-	test/test-prefix-store.c \
-	test/test-util.h \
-	test/test-util.c \
-	src/xb-prefix-store.h \
-	src/xb-prefix-store.c \
-	$(NULL)
-test_prefix_store_CPPFLAGS = $(TEST_CPPFLAGS)
-test_prefix_store_LDADD = $(TEST_LIBS)
-
 test_database_manager_SOURCES = \
 	test/test-database-manager.c \
 	test/test-util.h \
@@ -120,8 +107,6 @@ test_database_manager_SOURCES = \
 	src/xb-database-manager.c \
 	src/xb-error.h \
 	src/xb-error.c \
-	src/xb-prefix-store.h \
-	src/xb-prefix-store.c \
 	$(NULL)
 test_database_manager_CPPFLAGS = $(TEST_CPPFLAGS)
 test_database_manager_LDADD = $(TEST_LIBS)
@@ -138,7 +123,6 @@ test_daemon_LDADD = $(TEST_LIBS)
 TESTS = \
 	test-daemon \
 	test-database-manager \
-	test-prefix-store \
 	test-router \
 	$(NULL)
 
