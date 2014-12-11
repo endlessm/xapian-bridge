@@ -44,8 +44,6 @@ bin_PROGRAMS = xapian-bridge
 
 xapian_bridge_SOURCES = \
 	src/xb-main.c \
-	src/xb-database-cache.h \
-	src/xb-database-cache.c \
 	src/xb-database-manager.h \
 	src/xb-database-manager.c \
 	src/xb-error.h \
@@ -76,7 +74,6 @@ TESTS_ENVIRONMENT = \
 noinst_PROGRAMS = \
 	generate-test-db \
 	test-daemon \
-	test-database-cache \
 	test-database-manager \
 	test-prefix-store \
 	test-router \
@@ -115,19 +112,6 @@ test_prefix_store_SOURCES = \
 test_prefix_store_CPPFLAGS = $(TEST_CPPFLAGS)
 test_prefix_store_LDADD = $(TEST_LIBS)
 
-test_database_cache_SOURCES = \
-	test/test-database-cache.c \
-	test/test-util.h \
-	test/test-util.c \
-	src/xb-database-cache.h \
-	src/xb-database-cache.c \
-	$(NULL)
-test_database_cache_CPPFLAGS = \
-	$(TEST_CPPFLAGS) \
-	-DLOCALSTATEDIR=\""$(localstatedir)"\" \
-	$(NULL)
-test_database_cache_LDADD = $(TEST_LIBS)
-
 test_database_manager_SOURCES = \
 	test/test-database-manager.c \
 	test/test-util.h \
@@ -153,7 +137,6 @@ test_daemon_LDADD = $(TEST_LIBS)
 # Run tests when running 'make check'
 TESTS = \
 	test-daemon \
-	test-database-cache \
 	test-database-manager \
 	test-prefix-store \
 	test-router \

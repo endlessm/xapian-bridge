@@ -16,7 +16,6 @@
 
 #include "config.h"
 
-#include "xb-database-cache.h"
 #include "xb-database-manager.h"
 #include "xb-error.h"
 #include "xb-router.h"
@@ -34,7 +33,6 @@
 
 typedef struct {
   XbRoutedServer *server;
-  XbDatabaseCache *cache;
   XbDatabaseManager *manager;
   GList *meta_database_names;
   GMainLoop *loop;
@@ -145,7 +143,6 @@ sigterm_handler (gpointer user_data)
 static void
 xapian_bridge_free (XapianBridge *xb)
 {
-  g_clear_object (&xb->cache);
   g_clear_object (&xb->manager);
   g_clear_object (&xb->server);
   g_clear_pointer (&xb->loop, g_main_loop_unref);
@@ -211,7 +208,6 @@ xapian_bridge_new (GError **error_out)
 
   xb = g_slice_new0 (XapianBridge);
   xb->server = server;
-  xb->cache = xb_database_cache_new ();
   xb->manager = xb_database_manager_new ();
   xb->loop = g_main_loop_new (NULL, FALSE);
   xb->meta_database_names = g_list_prepend (xb->meta_database_names, g_strdup (META_DB_ALL));
