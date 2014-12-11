@@ -54,9 +54,6 @@ gboolean xb_database_manager_create_db (XbDatabaseManager *self,
 					const gchar *path,
 					const gchar *lang,
 					GError **error_out);
-gboolean xb_database_manager_remove_db (XbDatabaseManager *self,
-                                        const gchar *index_name,
-                                        GError **error_out);
 
 JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
 					  const gchar *path,

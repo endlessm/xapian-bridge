@@ -185,47 +185,6 @@ test_queries_db (DatabaseManagerFixture *fixture,
 }
 
 static void
-test_remove_invalid_db_fails (DatabaseManagerFixture *fixture,
-                              gconstpointer user_data)
-{
-  GError *error = NULL;
-  gboolean res;
-  gboolean removed;
-
-  res = create_sample_db (fixture, NULL, &error);
-
-  g_assert_true (res);
-  g_assert_no_error (error);
-
-  removed = xb_database_manager_remove_db (fixture->manager, "invalid", &error);
-  g_assert_false (removed);
-  g_assert_error (error, XB_ERROR, XB_ERROR_DATABASE_NOT_FOUND);
-  g_error_free (error);
-}
-
-static void
-test_removes_db (DatabaseManagerFixture *fixture,
-                 gconstpointer user_data)
-{
-  GError *error = NULL;
-  gboolean res;
-  gboolean removed;
-  gchar *path = NULL;
-
-  res = create_sample_db (fixture, &path, &error);
-
-  g_assert_true (res);
-  g_assert_no_error (error);
-  g_assert_nonnull (path);
-
-  removed = xb_database_manager_remove_db (fixture->manager, path, &error);
-  g_assert_true (removed);
-  g_assert_no_error (error);
-
-  g_free (path);
-}
-
-static void
 test_has_invalid_db_fails (DatabaseManagerFixture *fixture,
                            gconstpointer user_data)
 {
@@ -318,10 +277,6 @@ main (int argc,
                       test_has_db);
   ADD_DBMANAGER_TEST ("/dbmanager/has-invalid-db-fails",
                       test_has_invalid_db_fails);
-  ADD_DBMANAGER_TEST ("/dbmanager/removes-db",
-                      test_removes_db);
-  ADD_DBMANAGER_TEST ("/dbmanager/remove-invalid-db-fails",
-                      test_remove_invalid_db_fails);
   ADD_DBMANAGER_TEST ("/dbmanager/queries-db",
                       test_queries_db);
   ADD_DBMANAGER_TEST ("/dbmanager/query-invalid-db-fails",

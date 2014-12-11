@@ -460,28 +460,6 @@ xb_database_manager_create_db (XbDatabaseManager *self,
   return TRUE;
 }
 
-/* Deletes the database indexed at path (if any) */
-gboolean
-xb_database_manager_remove_db (XbDatabaseManager *self,
-                               const gchar *path,
-                               GError **error_out)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-
-  if (!xb_database_manager_has_db (self, path))
-    {
-      g_set_error (error_out, XB_ERROR,
-                   XB_ERROR_DATABASE_NOT_FOUND,
-                   "Cannnot find database at path %s",
-                   path);
-      return FALSE;
-    }
-
-  g_hash_table_remove (priv->databases, path);
-
-  return TRUE;
-}
-
 static JsonObject *
 document_to_json_object (XapianDocument *document)
 {
