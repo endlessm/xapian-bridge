@@ -184,15 +184,6 @@ xb_database_manager_init (XbDatabaseManager *self)
 					   g_free, (GDestroyNotify) database_payload_free);
 }
 
-/* Returns whether the manager has a database at path */
-gboolean
-xb_database_manager_has_db (XbDatabaseManager *self,
-			    const gchar *path)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  return (g_hash_table_lookup (priv->databases, path) != NULL);
-}
-
 static gboolean
 stem_supports_language (const gchar *lang)
 {

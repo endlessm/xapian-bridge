@@ -185,38 +185,6 @@ test_queries_db (DatabaseManagerFixture *fixture,
 }
 
 static void
-test_has_invalid_db_fails (DatabaseManagerFixture *fixture,
-                           gconstpointer user_data)
-{
-  gboolean has_db;
-
-  has_db = xb_database_manager_has_db (fixture->manager, "invalid");
-  g_assert_false (has_db);
-}
-
-static void
-test_has_db (DatabaseManagerFixture *fixture,
-             gconstpointer user_data)
-{
-  gboolean has_db;
-  gboolean res;
-  gchar *path = NULL;
-  GError *error = NULL;
-
-  res = create_sample_db (fixture, &path, &error);
-
-  g_assert_true (res);
-  g_assert_no_error (error);
-  g_assert_nonnull (path);
-  
-  has_db = xb_database_manager_has_db (fixture->manager, path);
-
-  g_assert_true (has_db);
-
-  g_free (path);
-}
-
-static void
 test_create_invalid_db_fails (DatabaseManagerFixture *fixture,
                               gconstpointer user_data)
 {
@@ -273,10 +241,6 @@ main (int argc,
                       test_creates_db);
   ADD_DBMANAGER_TEST ("/dbmanager/create-invalid-db-fails",
                       test_create_invalid_db_fails);
-  ADD_DBMANAGER_TEST ("/dbmanager/has-db",
-                      test_has_db);
-  ADD_DBMANAGER_TEST ("/dbmanager/has-invalid-db-fails",
-                      test_has_invalid_db_fails);
   ADD_DBMANAGER_TEST ("/dbmanager/queries-db",
                       test_queries_db);
   ADD_DBMANAGER_TEST ("/dbmanager/query-invalid-db-fails",
