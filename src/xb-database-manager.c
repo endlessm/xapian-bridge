@@ -43,158 +43,48 @@
   XAPIAN_QUERY_PARSER_FEATURE_SPELLING_CORRECTION
 
 typedef struct {
-  /* string index_name => object XapianDatabase */
+  XapianDatabase *db;
+  XapianQueryParser *qp;
+  gchar *lang;
+} DatabasePayload;
+
+static void
+database_payload_free (DatabasePayload *payload)
+{
+  g_clear_object (&payload->db);
+  g_clear_object (&payload->qp);
+  g_free (payload->lang);
+
+  g_slice_free (DatabasePayload, payload);
+}
+
+static DatabasePayload *
+database_payload_new (XapianDatabase *db,
+		      XapianQueryParser *qp,
+		      const gchar *lang)
+{
+  DatabasePayload *payload;
+
+  payload = g_slice_new0 (DatabasePayload);
+  payload->db = g_object_ref (db);
+  payload->qp = g_object_ref (qp);
+  payload->lang = g_strdup (lang);
+
+  return payload;
+}
+
+typedef struct {
+  /* string path => struct DatabasePayload */
   GHashTable *databases;
-  /* string index_name => string lang_name */
-  GHashTable *database_langs;
-  /* string index_name => object XapianQueryParser */
-  GHashTable *database_qps;
   /* string lang_name => object XapianStem */
   GHashTable *stemmers;
 
-  XapianDatabase *meta_db;
+  DatabasePayload *meta_db;
+
   XbPrefixStore *prefix_store;
 } XbDatabaseManagerPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (XbDatabaseManager, xb_database_manager, G_TYPE_OBJECT)
-
-/* Returns a new XapianDatabase which has all currently managed databases
- * as children, to facilitate queries across all databases. If lang is
- * specified, only return databases which are registered for that lang.
- */
-static XapianDatabase *
-xb_database_manager_new_meta_db (XbDatabaseManager *self,
-                                 const gchar *lang)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  XapianDatabase *meta_db;
-  GError *error = NULL;
-  GHashTableIter iter;
-  gchar *db_index_name, *db_lang;
-  XapianDatabase *db;
-
-  meta_db = xapian_database_new (&error);
-  /* fatal error - g_error() will call abort() */
-  if (error != NULL)
-    g_error ("Cannot create meta XapianDatabase: %s", error->message);
-
-  g_hash_table_iter_init (&iter, priv->databases);
-  while (g_hash_table_iter_next (&iter, (gpointer *) &db_index_name, (gpointer *) &db))
-    {
-      db_lang = g_hash_table_lookup (priv->database_langs, db_index_name);
-
-      /* lang == NULL means to use all databases, so we just add them all
-       * to the meta_db in that case.
-       */
-      if (lang != NULL && g_strcmp0 (lang, db_lang) != 0)
-        continue;
-
-      xapian_database_add_database (meta_db, db);
-    }
-
-  return meta_db;
-}
-
-static void
-xb_database_manager_finalize (GObject *object)
-{
-  XbDatabaseManager *self = XB_DATABASE_MANAGER (object);
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-
-  g_clear_pointer (&priv->databases, g_hash_table_unref);
-  g_clear_pointer (&priv->database_langs, g_hash_table_unref);
-  g_clear_pointer (&priv->database_qps, g_hash_table_unref);
-  g_clear_pointer (&priv->stemmers, g_hash_table_unref);
-
-  g_clear_object (&priv->meta_db);
-  g_clear_object (&priv->prefix_store);
-
-  G_OBJECT_CLASS (xb_database_manager_parent_class)->finalize (object);
-}
-
-static void
-xb_database_manager_class_init (XbDatabaseManagerClass *klass)
-{
-    GObjectClass *gobject_class = (GObjectClass *)klass;
-    gobject_class->finalize = xb_database_manager_finalize;
-}
-
-static void
-xb_database_manager_init (XbDatabaseManager *self)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-
-  priv->stemmers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
-  g_hash_table_insert (priv->stemmers, g_strdup ("none"), xapian_stem_new ());
-
-  priv->database_langs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-  priv->databases = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
-  priv->database_qps = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
-
-  /* Setup the meta database, which will let us query all databases via
-   * the query_all() method
-   */
-  priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
-
-  /* The prefix store manages stored field -> prefix associations, and
-   * returns unions of unique associations for use in meta databases
-   */
-  priv->prefix_store = xb_prefix_store_new ();
-}
-
-/* Returns whether the manager has a database at index_name */
-gboolean
-xb_database_manager_has_db (XbDatabaseManager *self,
-                            const gchar *index_name)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  return (g_hash_table_lookup (priv->databases, index_name) != NULL);
-}
-
-static gboolean
-stem_supports_language (const gchar *lang)
-{
-  gchar **available_langs;
-  gint idx;
-  gboolean retval = FALSE;
-  const gchar *xapian_lang = NULL;
-
-  /* Mapping from ISO 639 lang codes to
-   * Xapian's internal language strings.
-   */
-  static const struct {
-    const gchar *iso_code;
-    const gchar *xapian_code;
-  } lang_code_map[] = {
-    { "ar", "arabic" },
-    { "es", "spanish" },
-    { "en", "english" },
-    { "fr", "french" },
-    { "pt", "portuguese" },
-  };
-
-  for (idx = 0; idx < G_N_ELEMENTS (lang_code_map); idx++)
-    {
-      if (g_strcmp0 (lang, lang_code_map[idx].xapian_code) == 0)
-        xapian_lang = lang_code_map[idx].xapian_code;
-    }
-
-  if (xapian_lang == NULL)
-    return FALSE;
-
-  available_langs = xapian_stem_get_available_languages ();
-  for (idx = 0; available_langs[idx] != NULL; idx++)
-    {
-      if (g_strcmp0 (xapian_lang, available_langs[idx]) == 0)
-        {
-          retval = TRUE;
-          break;
-        }
-    }
-
-  g_strfreev (available_langs);
-  return retval;
-}
 
 /* Registers the prefixes and booleanPrefixes contained in the JSON object
  * to the query parser.
@@ -268,12 +158,198 @@ xb_database_manager_add_queryparser_standard_prefixes (XbDatabaseManager *self,
                                             FALSE);
 }
 
+/* Returns a new XapianQueryParser for a given language, and associates it
+ * with the given database. The prefixes registered for the query parser
+ * derive from XbPrefixStore's prefix map for the given lang.
+ * If lang is "all", the XbPrefixStore aggregates an union of all its known prefixes.
+ */
+static XapianQueryParser *
+xb_database_manager_new_meta_query_parser (XbDatabaseManager *self,
+                                           const gchar *lang,
+                                           XapianDatabase *db)
+{
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+  XapianQueryParser *query_parser;
+  XapianStem *stem;
+  JsonObject *prefix_map;
+
+  query_parser = xapian_query_parser_new ();
+  xapian_query_parser_set_stemming_strategy (query_parser, XAPIAN_STEM_STRATEGY_STEM_SOME);
+
+  stem = g_hash_table_lookup (priv->stemmers, lang);
+  if (stem == NULL)
+    stem = g_hash_table_lookup (priv->stemmers, "none");
+
+  g_assert (stem != NULL);
+  xapian_query_parser_set_stemmer (query_parser, stem);
+  xapian_query_parser_set_database (query_parser, db);
+
+  if (g_strcmp0 (lang, "all") == 0)
+    prefix_map = xb_prefix_store_get_all (priv->prefix_store);
+  else
+    prefix_map = xb_prefix_store_get (priv->prefix_store, lang);
+
+  if (prefix_map != NULL)
+    {
+      xb_database_manager_add_queryparser_prefixes (self, query_parser, prefix_map);
+      json_object_unref (prefix_map);
+    }
+  else
+    {
+      xb_database_manager_add_queryparser_standard_prefixes (self, query_parser);
+    }
+
+  return query_parser;
+}
+
+/* Returns a new XapianDatabase which has all currently managed databases
+ * as children, to facilitate queries across all databases. If lang is
+ * specified, only return databases which are registered for that lang.
+ */
+static DatabasePayload *
+xb_database_manager_new_meta_db (XbDatabaseManager *self,
+                                 const gchar *lang)
+{
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+  XapianDatabase *meta_db;
+  XapianQueryParser *meta_qp;
+  GError *error = NULL;
+  GHashTableIter iter;
+  gchar *db_path;
+  DatabasePayload *payload, *meta_payload;
+
+  meta_db = xapian_database_new (&error);
+  /* fatal error - g_error() will call abort() */
+  if (error != NULL)
+    g_error ("Cannot create meta XapianDatabase: %s", error->message);
+
+  g_hash_table_iter_init (&iter, priv->databases);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &db_path, (gpointer *) &payload))
+    {
+      /* lang == NULL means to use all databases, so we just add them all
+       * to the meta_db in that case.
+       */
+      if (lang != NULL && g_strcmp0 (lang, payload->lang) != 0)
+        continue;
+
+      xapian_database_add_database (meta_db, payload->db);
+    }
+
+  if (lang == NULL)
+    lang = "all";
+
+  meta_qp = xb_database_manager_new_meta_query_parser (self, lang, meta_db);
+  meta_payload = database_payload_new (meta_db, meta_qp, lang);
+  g_object_unref (meta_db);
+  g_object_unref (meta_qp);
+
+  return meta_payload;
+}
+
+static void
+xb_database_manager_finalize (GObject *object)
+{
+  XbDatabaseManager *self = XB_DATABASE_MANAGER (object);
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+
+  g_clear_pointer (&priv->databases, g_hash_table_unref);
+  g_clear_pointer (&priv->stemmers, g_hash_table_unref);
+
+  g_clear_pointer (&priv->meta_db, database_payload_free);
+  g_clear_object (&priv->prefix_store);
+
+  G_OBJECT_CLASS (xb_database_manager_parent_class)->finalize (object);
+}
+
+static void
+xb_database_manager_class_init (XbDatabaseManagerClass *klass)
+{
+    GObjectClass *gobject_class = (GObjectClass *)klass;
+    gobject_class->finalize = xb_database_manager_finalize;
+}
+
+static void
+xb_database_manager_init (XbDatabaseManager *self)
+{
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+
+  priv->stemmers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
+  g_hash_table_insert (priv->stemmers, g_strdup ("none"), xapian_stem_new ());
+
+  priv->databases = g_hash_table_new_full (g_str_hash, g_str_equal,
+					   g_free, (GDestroyNotify) database_payload_free);
+
+  /* The prefix store manages stored field -> prefix associations, and
+   * returns unions of unique associations for use in meta databases
+   */
+  priv->prefix_store = xb_prefix_store_new ();
+
+  /* Setup the meta database, which will let us query all databases via
+   * the query_all() method
+   */
+  priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
+}
+
+/* Returns whether the manager has a database at path */
+gboolean
+xb_database_manager_has_db (XbDatabaseManager *self,
+			    const gchar *path)
+{
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+  return (g_hash_table_lookup (priv->databases, path) != NULL);
+}
+
+static gboolean
+stem_supports_language (const gchar *lang)
+{
+  gchar **available_langs;
+  gint idx;
+  gboolean retval = FALSE;
+  const gchar *xapian_lang = NULL;
+
+  /* Mapping from ISO 639 lang codes to
+   * Xapian's internal language strings.
+   */
+  static const struct {
+    const gchar *iso_code;
+    const gchar *xapian_code;
+  } lang_code_map[] = {
+    { "ar", "arabic" },
+    { "es", "spanish" },
+    { "en", "english" },
+    { "fr", "french" },
+    { "pt", "portuguese" },
+  };
+
+  for (idx = 0; idx < G_N_ELEMENTS (lang_code_map); idx++)
+    {
+      if (g_strcmp0 (lang, lang_code_map[idx].xapian_code) == 0)
+        xapian_lang = lang_code_map[idx].xapian_code;
+    }
+
+  if (xapian_lang == NULL)
+    return FALSE;
+
+  available_langs = xapian_stem_get_available_languages ();
+  for (idx = 0; available_langs[idx] != NULL; idx++)
+    {
+      if (g_strcmp0 (xapian_lang, available_langs[idx]) == 0)
+        {
+          retval = TRUE;
+          break;
+        }
+    }
+
+  g_strfreev (available_langs);
+  return retval;
+}
+
 static void
 xb_database_manager_register_prefixes (XbDatabaseManager *self,
                                        XapianDatabase *db,
                                        XapianQueryParser *query_parser,
                                        const gchar *lang,
-                                       const gchar *index_name)
+				       const gchar *path)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   gchar *metadata_json;
@@ -286,7 +362,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   if (error != NULL)
     {
       g_warning ("Could not register prefixes for database %s: %s",
-                 index_name, error->message);
+                 path, error->message);
       goto out;
     }
 
@@ -295,7 +371,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   if (error != NULL)
     {
       g_warning ("Could not parse JSON prefixes metadata for database %s: %s",
-                 index_name, error->message);
+                 path, error->message);
       goto out;
     }
 
@@ -372,15 +448,14 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
   return TRUE;
 }
 
-/* Creates a new XapianDatabase for the given path, and indexes it by index_name,
+/* Creates a new XapianDatabase for the given path, and indexes it by path,
  * overwriting any existing database with the same name.
  */
-XapianDatabase *
-xb_database_manager_create_db (XbDatabaseManager *self,
-                               const gchar *index_name,
-                               const gchar *path,
-                               const gchar *lang,
-                               GError **error_out)
+static DatabasePayload *
+xb_database_manager_create_db_internal (XbDatabaseManager *self,
+					const gchar *path,
+					const gchar *lang,
+					GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   gboolean has_db;
@@ -389,9 +464,10 @@ xb_database_manager_create_db (XbDatabaseManager *self,
   GError *error = NULL;
   const gchar *stem_lang;
   XapianQueryParser *query_parser;
+  DatabasePayload *payload;
 
   /* Remember whether this will overwrite an existing db */
-  has_db = xb_database_manager_has_db (self, index_name);
+  has_db = xb_database_manager_has_db (self, path);
   db = xapian_database_new_with_path (path, &error);
   if (error != NULL)
     {
@@ -435,18 +511,19 @@ xb_database_manager_create_db (XbDatabaseManager *self,
   xapian_query_parser_set_stemmer (query_parser, stem);
   xapian_query_parser_set_database (query_parser, db);
 
-  xb_database_manager_register_prefixes (self, db, query_parser, lang, index_name);
+  xb_database_manager_register_prefixes (self, db, query_parser, lang, path);
 
   if (!xb_database_manager_register_stopwords (self, db, query_parser, &error))
     {
       /* Non-fatal */
-      g_warning ("Could not add stop words for database %s: %s.", index_name, error->message);
+      g_warning ("Could not add stop words for database %s: %s.", path, error->message);
       g_clear_error (&error);
     }
 
-  g_hash_table_insert (priv->databases, g_strdup (index_name), db);
-  g_hash_table_insert (priv->database_langs, g_strdup (index_name), g_strdup (lang));
-  g_hash_table_insert (priv->database_qps, g_strdup (index_name), query_parser);
+  payload = database_payload_new (db, query_parser, lang);
+  g_hash_table_insert (priv->databases, g_strdup (path), payload);
+  g_object_unref (db);
+  g_object_unref (query_parser);
 
   /* If we just overwrote an existing database, we need to build the
    * meta_db from scratch, since there's no Xapian::Database remove_db
@@ -455,40 +532,84 @@ xb_database_manager_create_db (XbDatabaseManager *self,
    */
   if (has_db)
     {
-      g_clear_object (&priv->meta_db);
+      g_clear_pointer (&priv->meta_db, database_payload_free);
       priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
     }
   else
     {
-      xapian_database_add_database (priv->meta_db, db);
+      xapian_database_add_database (priv->meta_db->db, db);
     }
 
-  return db;
+  return payload;
 }
 
-/* Deletes the database indexed at index_name (if any) */
+static DatabasePayload *
+xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
+					 const gchar *path,
+					 GHashTable *query,
+					 GError **error_out)
+{
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+  const gchar *lang;
+  GError *error = NULL;
+  DatabasePayload *payload;
+
+  lang = g_hash_table_lookup (query, "lang");
+  if (lang == NULL)
+    lang = "none";
+
+  payload = g_hash_table_lookup (priv->databases, path);
+  if (payload == NULL)
+    payload = xb_database_manager_create_db_internal (self, path, lang, &error);
+
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      return NULL;
+    }
+
+  return payload;
+}
+
+gboolean
+xb_database_manager_create_db (XbDatabaseManager *self,
+			       const gchar *path,
+			       const gchar *lang,
+			       GError **error_out)
+{
+  GError *error = NULL;
+
+  xb_database_manager_create_db_internal (self, path, lang, &error);
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+/* Deletes the database indexed at path (if any) */
 gboolean
 xb_database_manager_remove_db (XbDatabaseManager *self,
-                               const gchar *index_name,
+                               const gchar *path,
                                GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
 
-  if (!xb_database_manager_has_db (self, index_name))
+  if (!xb_database_manager_has_db (self, path))
     {
       g_set_error (error_out, XB_ERROR,
                    XB_ERROR_DATABASE_NOT_FOUND,
-                   "Cannnot find database with name %s",
-                   index_name);
+                   "Cannnot find database at path %s",
+                   path);
       return FALSE;
     }
 
-  g_hash_table_remove (priv->databases, index_name);
-  g_hash_table_remove (priv->database_langs, index_name);
-  g_hash_table_remove (priv->database_qps, index_name);
+  g_hash_table_remove (priv->databases, path);
 
   /* Rebuild meta_db, since there's no Xapian::Database remove_db method */
-  g_clear_object (&priv->meta_db);
+  g_clear_pointer (&priv->meta_db, database_payload_free);
   priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
 
   return TRUE;
@@ -647,8 +768,7 @@ create_empty_query_results (void)
  */
 static JsonObject *
 xb_database_manager_query (XbDatabaseManager *self,
-                           XapianDatabase *db,
-                           XapianQueryParser *query_parser,
+			   DatabasePayload *payload,
                            GHashTable *query_options,
                            GError **error_out)
 {
@@ -659,7 +779,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   const gchar *str;
   JsonObject *results = NULL, *corrected_results;
 
-  if (database_is_empty (db))
+  if (database_is_empty (payload->db))
     return create_empty_query_results ();
 
   str = g_hash_table_lookup (query_options, QUERY_PARAM_QUERYSTR);
@@ -674,14 +794,14 @@ xb_database_manager_query (XbDatabaseManager *self,
   /* save the query string aside */
   query_str = g_strdup (str);
 
-  enquire = xapian_enquire_new (db, &error);
+  enquire = xapian_enquire_new (payload->db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
       goto out;
     }
 
-  parsed_query = xapian_query_parser_parse_query_full (query_parser, str,
+  parsed_query = xapian_query_parser_parse_query_full (payload->qp, str,
                                                        QUERY_PARSER_FLAGS, "", &error);
 
   if (error != NULL)
@@ -723,10 +843,10 @@ xb_database_manager_query (XbDatabaseManager *self,
     }
 
   /* corrected_query_str will be the empty string if no correction is found */
-  corrected_query_str = xapian_query_parser_get_corrected_query_string (query_parser);
+  corrected_query_str = xapian_query_parser_get_corrected_query_string (payload->qp);
   if (corrected_query_str != NULL && corrected_query_str[0] != '\0')
     {
-      corrected_query = xapian_query_parser_parse_query_full (query_parser, corrected_query_str,
+      corrected_query = xapian_query_parser_parse_query_full (payload->qp, corrected_query_str,
                                                               QUERY_PARSER_FLAGS, "", &error);
       if (error != NULL)
         {
@@ -763,7 +883,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   return results;
 }
 
-/* If a database exists at index_name, queries it with the following options:
+/* If a database exists, queries it with the following options:
  *   - collapse: see http://xapian.org/docs/collapsing.html
  *   - cutoff: percent between (0, 100) for the XapianEnquire cutoff parameter
  *   - limit: max number of results to return
@@ -775,71 +895,23 @@ xb_database_manager_query (XbDatabaseManager *self,
  */
 JsonObject *
 xb_database_manager_query_db (XbDatabaseManager *self,
-                              const gchar *index_name,
+			      const gchar *path,
                               GHashTable *query,
                               GError **error_out)
 {
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  XapianDatabase *db;
-  XapianQueryParser *query_parser;
+  DatabasePayload *payload;
+  GError *error = NULL;
 
-  if (!xb_database_manager_has_db (self, index_name))
+  g_assert (path != NULL);
+
+  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  if (error != NULL)
     {
-      g_set_error (error_out, XB_ERROR,
-                   XB_ERROR_DATABASE_NOT_FOUND,
-                   "Cannnot find database with name %s",
-                   index_name);
+      g_propagate_error (error_out, error);
       return FALSE;
     }
 
-  db = g_hash_table_lookup (priv->databases, index_name);
-  query_parser = g_hash_table_lookup (priv->database_qps, index_name);
-
-  return xb_database_manager_query (self, db, query_parser, query, error_out);
-}
-
-/* Returns a new XapianQueryParser for a given language, and associates it
- * with the given database. The prefixes registered for the query parser
- * derive from XbPrefixStore's prefix map for the given lang.
- * If lang is "all", the XbPrefixStore aggregates an union of all its known prefixes.
- */
-static XapianQueryParser *
-xb_database_manager_new_meta_query_parser (XbDatabaseManager *self,
-                                           const gchar *lang,
-                                           XapianDatabase *db)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  XapianQueryParser *query_parser;
-  XapianStem *stem;
-  JsonObject *prefix_map;
-
-  query_parser = xapian_query_parser_new ();
-  xapian_query_parser_set_stemming_strategy (query_parser, XAPIAN_STEM_STRATEGY_STEM_SOME);
-
-  stem = g_hash_table_lookup (priv->stemmers, lang);
-  if (stem == NULL)
-    stem = g_hash_table_lookup (priv->stemmers, "none");
-
-  g_assert (stem != NULL);
-  xapian_query_parser_set_stemmer (query_parser, stem);
-  xapian_query_parser_set_database (query_parser, db);
-
-  if (g_strcmp0 (lang, "all") == 0)
-    prefix_map = xb_prefix_store_get_all (priv->prefix_store);
-  else
-    prefix_map = xb_prefix_store_get (priv->prefix_store, lang);
-
-  if (prefix_map != NULL)
-    {
-      xb_database_manager_add_queryparser_prefixes (self, query_parser, prefix_map);
-      json_object_unref (prefix_map);
-    }
-  else
-    {
-      xb_database_manager_add_queryparser_standard_prefixes (self, query_parser);
-    }
-
-  return query_parser;
+  return xb_database_manager_query (self, payload, query, error_out);
 }
 
 JsonObject *
@@ -848,17 +920,12 @@ xb_database_manager_query_lang (XbDatabaseManager *self,
                                 GHashTable *query,
                                 GError **error_out)
 {
-  XapianDatabase *meta_lang_db;
-  XapianQueryParser *meta_lang_qp;
+  DatabasePayload *meta_lang_db;
   JsonObject *res;
 
   meta_lang_db = xb_database_manager_new_meta_db (self, lang);
-  meta_lang_qp = xb_database_manager_new_meta_query_parser (self, lang, meta_lang_db);
-
-  res = xb_database_manager_query (self, meta_lang_db, meta_lang_qp, query, error_out);
-
-  g_object_unref (meta_lang_db);
-  g_object_unref (meta_lang_qp);
+  res = xb_database_manager_query (self, meta_lang_db, query, error_out);
+  database_payload_free (meta_lang_db);
 
   return res;
 }
@@ -870,15 +937,7 @@ xb_database_manager_query_all (XbDatabaseManager *self,
                                GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  XapianQueryParser *meta_qp;
-  JsonObject *res;
-
-  meta_qp = xb_database_manager_new_meta_query_parser (self, "all", priv->meta_db);
-  res = xb_database_manager_query (self, priv->meta_db, meta_qp, query, error_out);
-
-  g_object_unref (meta_qp);
-
-  return res;
+  return xb_database_manager_query (self, priv->meta_db, query, error_out);
 }
 
 XbDatabaseManager *
