@@ -62,10 +62,6 @@ JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
 					  const gchar *path,
                                           GHashTable *query,
                                           GError **error_out);
-JsonObject *xb_database_manager_query_lang (XbDatabaseManager *self,
-                                            const gchar *lang,
-                                            GHashTable *query,
-                                            GError **error_out);
 
 G_END_DECLS
 
