@@ -44,6 +44,9 @@
 typedef struct {
   XapianDatabase *db;
   XapianQueryParser *qp;
+  XbDatabaseManager *manager;
+  GFileMonitor *monitor;
+  gchar *path;
   gchar *lang;
 } DatabasePayload;
 
@@ -52,6 +55,10 @@ database_payload_free (DatabasePayload *payload)
 {
   g_clear_object (&payload->db);
   g_clear_object (&payload->qp);
+
+  g_file_monitor_cancel (payload->monitor);
+  g_clear_object (&payload->monitor);
+  g_free (payload->path);
   g_free (payload->lang);
 
   g_slice_free (DatabasePayload, payload);
@@ -59,14 +66,20 @@ database_payload_free (DatabasePayload *payload)
 
 static DatabasePayload *
 database_payload_new (XapianDatabase *db,
-		      XapianQueryParser *qp,
-		      const gchar *lang)
+                      XapianQueryParser *qp,
+                      XbDatabaseManager *manager,
+                      GFileMonitor *monitor,
+                      const gchar *path,
+                      const gchar *lang)
 {
   DatabasePayload *payload;
 
   payload = g_slice_new0 (DatabasePayload);
   payload->db = g_object_ref (db);
   payload->qp = g_object_ref (qp);
+  payload->manager = manager;
+  payload->monitor = g_object_ref (monitor);
+  payload->path = g_strdup (path);
   payload->lang = g_strdup (lang);
 
   return payload;
@@ -80,6 +93,64 @@ typedef struct {
 } XbDatabaseManagerPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (XbDatabaseManager, xb_database_manager, G_TYPE_OBJECT)
+
+static void
+xb_database_manager_invalidate_db (XbDatabaseManager *self,
+				   const gchar *path)
+{
+  if (self != NULL)
+    {
+      XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+      g_hash_table_remove (priv->databases, path);
+    }
+}
+
+static void
+database_monitor_changed (GFileMonitor *monitor,
+			  GFile *file,
+			  GFile *other_file,
+			  GFileMonitorEvent event_type,
+			  gpointer user_data)
+{
+  DatabasePayload *payload = user_data;
+
+  switch (event_type)
+    {
+    case G_FILE_MONITOR_EVENT_CHANGED:
+    case G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT:
+    case G_FILE_MONITOR_EVENT_DELETED:
+    case G_FILE_MONITOR_EVENT_MOVED:
+    case G_FILE_MONITOR_EVENT_UNMOUNTED:
+      xb_database_manager_invalidate_db (payload->manager, payload->path);
+      break;
+    default:
+      break;
+    }
+}
+
+static GFileMonitor *
+xb_database_manager_monitor_db (XbDatabaseManager *self,
+				const gchar *path)
+{
+  GFile *file;
+  GFileMonitor *monitor;
+  GError *error = NULL;
+
+  file = g_file_new_for_path (path);
+  monitor = g_file_monitor (file, G_FILE_MONITOR_NONE, NULL, &error);
+  g_object_unref (file);
+
+  if (error != NULL)
+    {
+      /* Non-fatal */
+      g_warning ("Could not monitor database at path %s: %s",
+		 path, error->message);
+      g_error_free (error);
+      return NULL;
+    }
+
+  return monitor;
+}
 
 /* Registers the prefixes and booleanPrefixes contained in the JSON object
  * to the query parser.
@@ -344,6 +415,7 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   const gchar *stem_lang;
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
+  GFileMonitor *monitor;
 
   g_assert (!g_hash_table_contains (priv->databases, path));
 
@@ -399,10 +471,16 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
       g_clear_error (&error);
     }
 
-  payload = database_payload_new (db, query_parser, lang);
+  monitor = xb_database_manager_monitor_db (self, path);
+  payload = database_payload_new (db, query_parser, self, monitor, path, lang);
   g_hash_table_insert (priv->databases, g_strdup (path), payload);
+
+  g_signal_connect (monitor, "changed",
+                    G_CALLBACK (database_monitor_changed), payload);
+
   g_object_unref (db);
   g_object_unref (query_parser);
+  g_object_unref (monitor);
 
   return payload;
 }
