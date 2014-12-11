@@ -345,6 +345,8 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
 
+  g_assert (!g_hash_table_contains (priv->databases, path));
+
   db = xapian_database_new_with_path (path, &error);
   if (error != NULL)
     {
