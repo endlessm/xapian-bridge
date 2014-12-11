@@ -7,7 +7,6 @@
 
 typedef struct {
   GSubprocess *daemon;
-  gchar *cache_path;
   gchar *port;
 } DaemonFixture;
 
@@ -34,15 +33,11 @@ setup (DaemonFixture *fixture,
   argv[0] = daemon_path;
   argv[1] = NULL;
 
-  fixture->cache_path = g_dir_make_tmp ("xb-daemon-test-XXXXXX", &error);
-  g_assert_no_error (error);
-
   port = g_random_int_range (12500, 13000);
   fixture->port = g_strdup_printf ("%d", port);
 
   launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
   g_subprocess_launcher_set_child_setup (launcher, setup_xapian_bridge_process, NULL, NULL);
-  g_subprocess_launcher_setenv (launcher, "XB_DATABASE_CACHE_DIR", fixture->cache_path, TRUE);
   g_subprocess_launcher_setenv (launcher, "XB_PORT", fixture->port, TRUE);
 
   fixture->daemon = g_subprocess_launcher_spawnv (launcher, argv, &error);
@@ -79,8 +74,6 @@ teardown (DaemonFixture *fixture,
 
   g_clear_object (&fixture->daemon);
 
-  test_clear_dir (fixture->cache_path);
-  g_free (fixture->cache_path);
   g_free (fixture->port);
 }
 
