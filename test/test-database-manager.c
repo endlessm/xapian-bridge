@@ -62,95 +62,6 @@ assert_json_query_object (JsonObject *object,
 }
 
 static void
-test_query_all_invalid_params_fails (DatabaseManagerFixture *fixture,
-                                     gconstpointer user_data)
-{
-  GHashTable *query;
-  JsonObject *object;
-  gboolean res;
-  GError *error = NULL;
-
-  res = create_sample_db (fixture, NULL, &error);
-
-  g_assert_true (res);
-  g_assert_no_error (error);
-
-  /* create an empty query */
-  query = g_hash_table_new (g_str_hash, g_str_equal);
-
-  object = xb_database_manager_query_all (fixture->manager, query, &error);
-
-  g_assert_null (object);
-  g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
-  g_clear_error (&error);
-  g_hash_table_unref (query);
-
-  /* create a query without limit or offset */
-  query = g_hash_table_new (g_str_hash, g_str_equal);
-  g_hash_table_insert (query, "q", "a");
-
-  object = xb_database_manager_query_all (fixture->manager, query, &error);
-
-  g_assert_null (object);
-  g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
-  g_clear_error (&error);
-  g_hash_table_unref (query);
-
-  /* create a query without offset */
-  query = g_hash_table_new (g_str_hash, g_str_equal);
-  g_hash_table_insert (query, "q", "a");
-  g_hash_table_insert (query, "limit", "5");
-
-  object = xb_database_manager_query_all (fixture->manager, query, &error);
-
-  g_assert_null (object);
-  g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
-  g_clear_error (&error);
-  g_hash_table_unref (query);
-
-  /* create a query without query string */
-  query = g_hash_table_new (g_str_hash, g_str_equal);
-  g_hash_table_insert (query, "limit", "5");
-  g_hash_table_insert (query, "offset", "0");
-
-  object = xb_database_manager_query_all (fixture->manager, query, &error);
-
-  g_assert_null (object);
-  g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
-  g_clear_error (&error);
-  g_hash_table_unref (query);
-}
-
-static void
-test_queries_all (DatabaseManagerFixture *fixture,
-                  gconstpointer user_data)
-{
-  GHashTable *query;
-  JsonObject *object;
-  gboolean res;
-  GError *error = NULL;
-
-  res = create_sample_db (fixture, NULL, &error);
-
-  g_assert_true (res);
-  g_assert_no_error (error);
-
-  query = g_hash_table_new (g_str_hash, g_str_equal);
-  g_hash_table_insert (query, "q", "a");
-  g_hash_table_insert (query, "limit", "5");
-  g_hash_table_insert (query, "offset", "0");
-
-  object = xb_database_manager_query_all (fixture->manager, query, &error);
-
-  g_assert_nonnull (object);
-  g_assert_no_error (error);
-  assert_json_query_object (object, 5, 0, "a");
-
-  json_object_unref (object);
-  g_hash_table_unref (query);
-}
-
-static void
 test_query_by_lang_invalid_params_fails (DatabaseManagerFixture *fixture,
                                          gconstpointer user_data)
 {
@@ -510,10 +421,6 @@ main (int argc,
                       test_queries_by_lang);
   ADD_DBMANAGER_TEST ("/dbmanager/query-by-lang-invalid-params-fail",
                       test_query_by_lang_invalid_params_fails);
-  ADD_DBMANAGER_TEST ("/dbmanager/queries-all",
-                      test_queries_all);
-  ADD_DBMANAGER_TEST ("/dbmanager/query-all-invalid-params-fail",
-                      test_query_all_invalid_params_fails);
 
 #undef ADD_DBMANAGER_TEST
 

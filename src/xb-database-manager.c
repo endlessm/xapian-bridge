@@ -79,8 +79,6 @@ typedef struct {
   /* string lang_name => object XapianStem */
   GHashTable *stemmers;
 
-  DatabasePayload *meta_db;
-
   XbPrefixStore *prefix_store;
 } XbDatabaseManagerPrivate;
 
@@ -255,7 +253,6 @@ xb_database_manager_finalize (GObject *object)
   g_clear_pointer (&priv->databases, g_hash_table_unref);
   g_clear_pointer (&priv->stemmers, g_hash_table_unref);
 
-  g_clear_pointer (&priv->meta_db, database_payload_free);
   g_clear_object (&priv->prefix_store);
 
   G_OBJECT_CLASS (xb_database_manager_parent_class)->finalize (object);
@@ -283,11 +280,6 @@ xb_database_manager_init (XbDatabaseManager *self)
    * returns unions of unique associations for use in meta databases
    */
   priv->prefix_store = xb_prefix_store_new ();
-
-  /* Setup the meta database, which will let us query all databases via
-   * the query_all() method
-   */
-  priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
 }
 
 /* Returns whether the manager has a database at path */
@@ -458,7 +450,6 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 					GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  gboolean has_db;
   XapianDatabase *db;
   XapianStem *stem;
   GError *error = NULL;
@@ -466,8 +457,6 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
 
-  /* Remember whether this will overwrite an existing db */
-  has_db = xb_database_manager_has_db (self, path);
   db = xapian_database_new_with_path (path, &error);
   if (error != NULL)
     {
@@ -524,21 +513,6 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   g_hash_table_insert (priv->databases, g_strdup (path), payload);
   g_object_unref (db);
   g_object_unref (query_parser);
-
-  /* If we just overwrote an existing database, we need to build the
-   * meta_db from scratch, since there's no Xapian::Database remove_db
-   * method. Otherwise, we can just add this newly created database
-   * to the meta_db.
-   */
-  if (has_db)
-    {
-      g_clear_pointer (&priv->meta_db, database_payload_free);
-      priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
-    }
-  else
-    {
-      xapian_database_add_database (priv->meta_db->db, db);
-    }
 
   return payload;
 }
@@ -607,10 +581,6 @@ xb_database_manager_remove_db (XbDatabaseManager *self,
     }
 
   g_hash_table_remove (priv->databases, path);
-
-  /* Rebuild meta_db, since there's no Xapian::Database remove_db method */
-  g_clear_pointer (&priv->meta_db, database_payload_free);
-  priv->meta_db = xb_database_manager_new_meta_db (self, NULL);
 
   return TRUE;
 }
@@ -928,16 +898,6 @@ xb_database_manager_query_lang (XbDatabaseManager *self,
   database_payload_free (meta_lang_db);
 
   return res;
-}
-
-/* Similar to xb_database_manager_query_db(), but for all databases */
-JsonObject *
-xb_database_manager_query_all (XbDatabaseManager *self,
-                               GHashTable *query,
-                               GError **error_out)
-{
-  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  return xb_database_manager_query (self, priv->meta_db, query, error_out);
 }
 
 XbDatabaseManager *
