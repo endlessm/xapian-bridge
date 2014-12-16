@@ -94,9 +94,9 @@ server_send_response (SoupMessage *message,
  */
 static void
 server_get_query_callback (GHashTable *params,
-			   GHashTable *query,
-			   SoupMessage *message,
-			   gpointer user_data)
+                           GHashTable *query,
+                           SoupMessage *message,
+                           gpointer user_data)
 {
   XapianBridge *xb = user_data;
   JsonObject *result;

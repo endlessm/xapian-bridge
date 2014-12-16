@@ -96,7 +96,7 @@ G_DEFINE_TYPE_WITH_PRIVATE (XbDatabaseManager, xb_database_manager, G_TYPE_OBJEC
 
 static void
 xb_database_manager_invalidate_db (XbDatabaseManager *self,
-				   const gchar *path)
+                                   const gchar *path)
 {
   if (self != NULL)
     {
@@ -107,10 +107,10 @@ xb_database_manager_invalidate_db (XbDatabaseManager *self,
 
 static void
 database_monitor_changed (GFileMonitor *monitor,
-			  GFile *file,
-			  GFile *other_file,
-			  GFileMonitorEvent event_type,
-			  gpointer user_data)
+                          GFile *file,
+                          GFile *other_file,
+                          GFileMonitorEvent event_type,
+                          gpointer user_data)
 {
   DatabasePayload *payload = user_data;
 
@@ -130,7 +130,7 @@ database_monitor_changed (GFileMonitor *monitor,
 
 static GFileMonitor *
 xb_database_manager_monitor_db (XbDatabaseManager *self,
-				const gchar *path)
+                                const gchar *path)
 {
   GFile *file;
   GFileMonitor *monitor;
@@ -144,7 +144,7 @@ xb_database_manager_monitor_db (XbDatabaseManager *self,
     {
       /* Non-fatal */
       g_warning ("Could not monitor database at path %s: %s",
-		 path, error->message);
+                 path, error->message);
       g_error_free (error);
       return NULL;
     }
@@ -252,7 +252,7 @@ xb_database_manager_init (XbDatabaseManager *self)
   g_hash_table_insert (priv->stemmers, g_strdup ("none"), xapian_stem_new ());
 
   priv->databases = g_hash_table_new_full (g_str_hash, g_str_equal,
-					   g_free, (GDestroyNotify) database_payload_free);
+                                           g_free, (GDestroyNotify) database_payload_free);
 }
 
 static gboolean
@@ -305,7 +305,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
                                        XapianDatabase *db,
                                        XapianQueryParser *query_parser,
                                        const gchar *lang,
-				       const gchar *path)
+                                       const gchar *path)
 {
   gchar *metadata_json;
   GError *error = NULL;
@@ -337,7 +337,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   root = json_parser_get_root (parser);
   if (root != NULL)
     xb_database_manager_add_queryparser_prefixes (self, query_parser,
-						  json_node_get_object (root));
+                                                  json_node_get_object (root));
 
  out:
   /* If there was an error, just use the "standard" prefix map */
@@ -404,9 +404,9 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
  */
 static DatabasePayload *
 xb_database_manager_create_db_internal (XbDatabaseManager *self,
-					const gchar *path,
-					const gchar *lang,
-					GError **error_out)
+                                        const gchar *path,
+                                        const gchar *lang,
+                                        GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   XapianDatabase *db;
@@ -487,9 +487,9 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 
 static DatabasePayload *
 xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
-					 const gchar *path,
-					 GHashTable *query,
-					 GError **error_out)
+                                         const gchar *path,
+                                         GHashTable *query,
+                                         GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   const gchar *lang;
@@ -515,9 +515,9 @@ xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
 
 gboolean
 xb_database_manager_create_db (XbDatabaseManager *self,
-			       const gchar *path,
-			       const gchar *lang,
-			       GError **error_out)
+                               const gchar *path,
+                               const gchar *lang,
+                               GError **error_out)
 {
   GError *error = NULL;
 
@@ -547,7 +547,7 @@ document_to_json_object (XapianDocument *document)
   if (error != NULL)
     {
       g_warning ("Unable to convert XapianDocument to JsonObject: %s",
-		 error->message);
+                 error->message);
       g_clear_error (&error);
       goto out;
     }
@@ -684,7 +684,7 @@ create_empty_query_results (void)
  */
 static JsonObject *
 xb_database_manager_query (XbDatabaseManager *self,
-			   DatabasePayload *payload,
+                           DatabasePayload *payload,
                            GHashTable *query_options,
                            GError **error_out)
 {
@@ -811,7 +811,7 @@ xb_database_manager_query (XbDatabaseManager *self,
  */
 JsonObject *
 xb_database_manager_query_db (XbDatabaseManager *self,
-			      const gchar *path,
+                              const gchar *path,
                               GHashTable *query,
                               GError **error_out)
 {

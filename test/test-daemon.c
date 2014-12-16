@@ -115,7 +115,7 @@ test_get_query_returns_json (DaemonFixture *fixture,
 
   db_path = test_get_sample_db_path_for_query ();
   req_uri = g_strdup_printf ("http://localhost:%s/query?path=%s&q=a&offset=0&limit=5",
-			     fixture->port, db_path);
+                             fixture->port, db_path);
   g_free (db_path);
 
   session = soup_session_new ();

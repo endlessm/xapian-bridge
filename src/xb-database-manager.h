@@ -48,12 +48,12 @@ GType xb_database_manager_get_type (void) G_GNUC_CONST;
 XbDatabaseManager *xb_database_manager_new (void);
 
 gboolean xb_database_manager_create_db (XbDatabaseManager *self,
-					const gchar *path,
-					const gchar *lang,
-					GError **error_out);
+                                        const gchar *path,
+                                        const gchar *lang,
+                                        GError **error_out);
 
 JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
-					  const gchar *path,
+                                          const gchar *path,
                                           GHashTable *query,
                                           GError **error_out);
 
