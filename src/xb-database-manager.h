@@ -47,28 +47,15 @@ GType xb_database_manager_get_type (void) G_GNUC_CONST;
 
 XbDatabaseManager *xb_database_manager_new (void);
 
-gboolean xb_database_manager_has_db (XbDatabaseManager *self,
-                                     const gchar *index_name);
-XapianDatabase *xb_database_manager_create_db (XbDatabaseManager *self,
-                                               const gchar *index_name,
-                                               const gchar *path,
-                                               const gchar *lang,
-                                               GError **error_out);
-gboolean xb_database_manager_remove_db (XbDatabaseManager *self,
-                                        const gchar *index_name,
+gboolean xb_database_manager_create_db (XbDatabaseManager *self,
+                                        const gchar *path,
+                                        const gchar *lang,
                                         GError **error_out);
 
 JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
-                                          const gchar *index_name,
+                                          const gchar *path,
                                           GHashTable *query,
                                           GError **error_out);
-JsonObject *xb_database_manager_query_lang (XbDatabaseManager *self,
-                                            const gchar *lang,
-                                            GHashTable *query,
-                                            GError **error_out);
-JsonObject *xb_database_manager_query_all (XbDatabaseManager *self,
-                                           GHashTable *query,
-                                           GError **error_out);
 
 G_END_DECLS
 

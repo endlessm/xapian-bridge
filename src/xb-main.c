@@ -16,7 +16,6 @@
 
 #include "config.h"
 
-#include "xb-database-cache.h"
 #include "xb-database-manager.h"
 #include "xb-error.h"
 #include "xb-router.h"
@@ -34,7 +33,6 @@
 
 typedef struct {
   XbRoutedServer *server;
-  XbDatabaseCache *cache;
   XbDatabaseManager *manager;
   GList *meta_database_names;
   GMainLoop *loop;
@@ -88,67 +86,31 @@ server_send_response (SoupMessage *message,
     }
 }
 
-/* GET /:index_name - just returns OK if database exists, NOT_FOUND otherwise
- * Returns:
- *      200 - Database at index_name exists
- *      404 - No database was found at index_name
- */
-static void
-server_get_index_name_callback (GHashTable *params,
-                                GHashTable *query,
-                                SoupMessage *message,
-                                gpointer user_data)
-{
-  XapianBridge *xb = user_data;
-  const gchar *index_name;
-
-  index_name = g_hash_table_lookup (params, "index_name");
-  g_assert (index_name != NULL);
-
-  if (xb_database_manager_has_db (xb->manager, index_name) ||
-      g_list_find_custom (xb->meta_database_names, index_name, (GCompareFunc) g_strcmp0))
-    server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
-  else
-    server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
-}
-
-/* GET /:index_name/query - query an index
+/* GET /query - query an index
  * Returns:
  *     200 - Query was successful
  *     400 - One of the required parameters wasn't specified (e.g. limit)
  *     404 - No database was found at index_name
  */
 static void
-server_get_index_name_query_callback (GHashTable *params,
-                                      GHashTable *query,
-                                      SoupMessage *message,
-                                      gpointer user_data)
+server_get_query_callback (GHashTable *params,
+                           GHashTable *query,
+                           SoupMessage *message,
+                           gpointer user_data)
 {
   XapianBridge *xb = user_data;
   JsonObject *result;
-  const gchar *index_name, *lang;
   GError *error = NULL;
+  const gchar *path;
 
-  index_name = g_hash_table_lookup (params, "index_name");
-  g_assert (index_name != NULL);
+  path = g_hash_table_lookup (query, "path");
+  if (path == NULL)
+    {
+      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      return;
+    }
 
-  if (g_list_find_custom (xb->meta_database_names, index_name, (GCompareFunc) g_strcmp0))
-    {
-      if (g_strcmp0 (index_name, META_DB_ALL) == 0)
-        {
-          result = xb_database_manager_query_all (xb->manager, query, &error);
-        }
-      else
-        {
-          /* index_name = "_{lang}" */
-          lang = index_name++;
-          result = xb_database_manager_query_lang (xb->manager, lang, query, &error);
-        }
-    }
-  else
-    {
-      result = xb_database_manager_query_db (xb->manager, index_name, query, &error);
-    }
+  result = xb_database_manager_query_db (xb->manager, path, query, &error);
 
   if (result != NULL)
     {
@@ -169,175 +131,6 @@ server_get_index_name_query_callback (GHashTable *params,
     }
 }
 
-/* PUT /:index_name - add/update the xapian database at index_name
- * Returns:
- *      200 - Database was successfully made
- *      400 - No path was specified or lang is unsupported
- *      403 - Database creation failed because path didn't exist
- *      405 - Attempt was made to create a database at reserved index
- */
-static void
-server_put_index_name_callback (GHashTable *params,
-                                GHashTable *query,
-                                SoupMessage *message,
-                                gpointer user_data)
-{
-  XapianBridge *xb = user_data;
-  const gchar *index_name;
-  const gchar *path, *lang;
-  gchar *unescaped_path;
-  GHashTable *headers;
-  GError *error = NULL;
-  gchar *lang_index_name;
-
-  if (query == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
-
-  index_name = g_hash_table_lookup (params, "index_name");
-  g_assert (index_name != NULL);
-
-  if (g_list_find_custom (xb->meta_database_names, index_name, (GCompareFunc) g_strcmp0))
-    {
-      headers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-      g_hash_table_insert (headers, g_strdup ("Allow"), g_strdup ("GET"));
-
-      server_send_response (message, SOUP_STATUS_METHOD_NOT_ALLOWED, headers, NULL);
-      g_hash_table_unref (headers);
-      return;
-    }
-
-  lang = g_hash_table_lookup (query, "lang");
-  if (lang == NULL)
-    lang = "none";
-
-  path = g_hash_table_lookup (query, "path");
-  if (path == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
-
-  /* Create the XapianDatabase and add it to the manager */
-  unescaped_path = g_uri_unescape_string (path, NULL);
-  xb_database_manager_create_db (xb->manager, index_name, unescaped_path, lang, &error);
-  if (error != NULL)
-    {
-      if (g_error_matches (error, XB_ERROR, XB_ERROR_INVALID_PATH) ||
-          g_error_matches (error, XB_ERROR, XB_ERROR_UNSUPPORTED_LANG))
-        server_send_response (message, SOUP_STATUS_FORBIDDEN, NULL, NULL);
-      else
-        server_send_response (message, SOUP_STATUS_INTERNAL_SERVER_ERROR, NULL, NULL);
-
-      g_critical ("Unable to create database: %s", error->message);
-      g_error_free (error);
-      g_free (unescaped_path);
-      return;
-    }
-
-  /* Add index_name and path to the cache */
-  xb_database_cache_set_entry (xb->cache, index_name, unescaped_path, lang);
-
-  /* Since a database now exists for lang, ensure a meta database name
-   * for that language also exists.
-   */
-  lang_index_name = g_strconcat ("_", lang, NULL);
-  if (!g_list_find_custom (xb->meta_database_names, lang_index_name, (GCompareFunc) g_strcmp0))
-    xb->meta_database_names = g_list_prepend (xb->meta_database_names, lang_index_name);
-
-  server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
-  g_free (unescaped_path);
-}
-
-/* DELETE /:index_name - remove the xapian database at index_name
- * Returns:
- *      200 - Database was successfully deleted
- *      404 - No database existed at index_name
- *      405 - Attempt was made to delete a reserved index, like "_all"
- */
-static void
-server_delete_index_name_callback (GHashTable *params,
-                                   GHashTable *query,
-                                   SoupMessage *message,
-                                   gpointer user_data)
-{
-  XapianBridge *xb = user_data;
-  GHashTable *headers;
-  const gchar *index_name;
-  GError *error = NULL;
-
-  index_name = g_hash_table_lookup (params, "index_name");
-  g_assert (index_name != NULL);
-
-  if (g_list_find_custom (xb->meta_database_names, index_name, (GCompareFunc) g_strcmp0))
-    {
-      headers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-      g_hash_table_insert (headers, g_strdup ("Allow"), g_strdup ("GET"));
-
-      server_send_response (message, SOUP_STATUS_METHOD_NOT_ALLOWED, headers, NULL);
-      g_hash_table_unref (headers);
-      return;
-    }
-
-  /* Remove the database from the manager, so it can't be queried */
-  if (!xb_database_manager_remove_db (xb->manager, index_name, &error))
-    {
-      g_warning ("Cannot remove database %s: %s", index_name, error->message);
-      g_error_free (error);
-
-      server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
-      return;
-    }
-
-  /* Remove the index_name and path from the cache */
-  xb_database_cache_remove_entry (xb->cache, index_name);
-  server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
-}
-
-static void
-initialize_entries_from_cache (XbDatabaseCache *cache,
-                               XbDatabaseManager *manager)
-{
-  const gchar *entry_name, *entry_path, *entry_lang;
-  JsonObject *cache_entries, *entry;
-  GList *entries, *l;
-  GError *error = NULL;
-
-  /* Load the cached database info and attempt to add the databases
-   * found this way.
-   */
-  cache_entries = xb_database_cache_get_entries (cache);
-  entries = json_object_get_members (cache_entries);
-  for (l = entries; l != NULL; l = l->next)
-    {
-      entry_name = l->data;
-      entry = json_object_get_object_member (cache_entries, entry_name);
-      if (entry == NULL)
-        continue;
-
-      entry_path = json_object_get_string_member (entry, "path");
-      entry_lang = json_object_get_string_member (entry, "lang");
-
-      xb_database_manager_create_db (manager, entry_name,
-                                     entry_path, entry_lang,
-                                     &error);
-
-      if (error != NULL)
-        {
-          g_warning ("Can't create database from cache: %s",
-                     error->message);
-          g_clear_error (&error);
-
-          /* Error creating the entry in the cache, so delete it */
-          xb_database_cache_remove_entry (cache, entry_name);
-        }
-    }
-
-  g_list_free (entries);
-}
-
 static gboolean
 sigterm_handler (gpointer user_data)
 {
@@ -350,7 +143,6 @@ sigterm_handler (gpointer user_data)
 static void
 xapian_bridge_free (XapianBridge *xb)
 {
-  g_clear_object (&xb->cache);
   g_clear_object (&xb->manager);
   g_clear_object (&xb->server);
   g_clear_pointer (&xb->loop, g_main_loop_unref);
@@ -416,22 +208,13 @@ xapian_bridge_new (GError **error_out)
 
   xb = g_slice_new0 (XapianBridge);
   xb->server = server;
-  xb->cache = xb_database_cache_new ();
   xb->manager = xb_database_manager_new ();
   xb->loop = g_main_loop_new (NULL, FALSE);
   xb->meta_database_names = g_list_prepend (xb->meta_database_names, g_strdup (META_DB_ALL));
   xb->sigterm_id = g_unix_signal_add (SIGTERM, sigterm_handler, xb);
 
-  initialize_entries_from_cache (xb->cache, xb->manager);
-
-  xb_routed_server_get (server, "/:index_name",
-                        server_get_index_name_callback, xb);
-  xb_routed_server_get (server, "/:index_name/query",
-                        server_get_index_name_query_callback, xb);
-  xb_routed_server_put (server, "/:index_name",
-                        server_put_index_name_callback, xb);
-  xb_routed_server_delete (server, "/:index_name",
-                           server_delete_index_name_callback, xb);
+  xb_routed_server_get (server, "/query",
+                        server_get_query_callback, xb);
 
   return xb;
 }
