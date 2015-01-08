@@ -83,6 +83,10 @@ AC_ARG_WITH([systemdsystemunitdir],
             [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
 AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
 
+# Code Coverage
+# -------------
+EOS_COVERAGE_REPORT([c])
+
 AC_CACHE_SAVE
 
 # Output

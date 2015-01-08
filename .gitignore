@@ -38,5 +38,10 @@ stamp*
 /missing
 /test-driver
 
+# Unit test / coverage reports
+*.gcda
+*.gcno
+/_coverage
+
 # Backup files
 *~
