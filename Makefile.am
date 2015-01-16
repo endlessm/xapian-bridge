@@ -38,6 +38,12 @@ systemdservice_DATA = \
 	data/xapian-bridge.socket \
 	$(NULL)
 
+# # # CODE COVERAGE # # #
+
+EOS_COVERAGE_BLACKLIST_PATTERNS = */test/*
+
+@EOS_COVERAGE_RULES@
+
 # # # INSTALL RULES # # #
 
 bin_PROGRAMS = xapian-bridge
@@ -57,10 +63,12 @@ xapian_bridge_SOURCES = \
 AM_CPPFLAGS = \
 	-DLOCALSTATEDIR=\""$(localstatedir)"\" \
 	$(XAPIAN_BRIDGE_CFLAGS) \
+	@EOS_C_COVERAGE_CFLAGS@ \
 	$(NULL)
 
 LDADD = \
 	$(XAPIAN_BRIDGE_LIBS) \
+	@EOS_C_COVERAGE_LDFLAGS@ \
 	$(NULL)
 
 # # # TESTS # # #
@@ -129,5 +137,9 @@ TESTS = \
 EXTRA_DIST += \
 	test/testdb \
 	$(NULL)
+
+# # # CLEAN RULES # # #
+# See http://www.gnu.org/softare/automake/manual/html_node/Clean.html
+clean-local: clean-coverage
 
 .PHONY: generate-dbs
