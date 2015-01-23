@@ -24,6 +24,7 @@
 #define QUERY_PARAM_COLLAPSE_KEY "collapse"
 #define QUERY_PARAM_CUTOFF "cutoff"
 #define QUERY_PARAM_LIMIT "limit"
+#define QUERY_PARAM_LANG "lang"
 #define QUERY_PARAM_OFFSET "offset"
 #define QUERY_PARAM_ORDER "order"
 #define QUERY_PARAM_QUERYSTR "q"
@@ -47,7 +48,6 @@ typedef struct {
   XbDatabaseManager *manager;
   GFileMonitor *monitor;
   gchar *path;
-  gchar *lang;
 } DatabasePayload;
 
 static void
@@ -59,7 +59,6 @@ database_payload_free (DatabasePayload *payload)
   g_file_monitor_cancel (payload->monitor);
   g_clear_object (&payload->monitor);
   g_free (payload->path);
-  g_free (payload->lang);
 
   g_slice_free (DatabasePayload, payload);
 }
@@ -69,8 +68,7 @@ database_payload_new (XapianDatabase *db,
                       XapianQueryParser *qp,
                       XbDatabaseManager *manager,
                       GFileMonitor *monitor,
-                      const gchar *path,
-                      const gchar *lang)
+                      const gchar *path)
 {
   DatabasePayload *payload;
 
@@ -80,7 +78,6 @@ database_payload_new (XapianDatabase *db,
   payload->manager = manager;
   payload->monitor = g_object_ref (monitor);
   payload->path = g_strdup (path);
-  payload->lang = g_strdup (lang);
 
   return payload;
 }
@@ -255,56 +252,10 @@ xb_database_manager_init (XbDatabaseManager *self)
                                            g_free, (GDestroyNotify) database_payload_free);
 }
 
-static gboolean
-stem_supports_language (const gchar *lang)
-{
-  gchar **available_langs;
-  gint idx;
-  gboolean retval = FALSE;
-  const gchar *xapian_lang = NULL;
-
-  /* Mapping from ISO 639 lang codes to
-   * Xapian's internal language strings.
-   */
-  static const struct {
-    const gchar *iso_code;
-    const gchar *xapian_code;
-  } lang_code_map[] = {
-    { "ar", "arabic" },
-    { "es", "spanish" },
-    { "en", "english" },
-    { "fr", "french" },
-    { "pt", "portuguese" },
-  };
-
-  for (idx = 0; idx < G_N_ELEMENTS (lang_code_map); idx++)
-    {
-      if (g_strcmp0 (lang, lang_code_map[idx].xapian_code) == 0)
-        xapian_lang = lang_code_map[idx].xapian_code;
-    }
-
-  if (xapian_lang == NULL)
-    return FALSE;
-
-  available_langs = xapian_stem_get_available_languages ();
-  for (idx = 0; available_langs[idx] != NULL; idx++)
-    {
-      if (g_strcmp0 (xapian_lang, available_langs[idx]) == 0)
-        {
-          retval = TRUE;
-          break;
-        }
-    }
-
-  g_strfreev (available_langs);
-  return retval;
-}
-
 static void
 xb_database_manager_register_prefixes (XbDatabaseManager *self,
                                        XapianDatabase *db,
                                        XapianQueryParser *query_parser,
-                                       const gchar *lang,
                                        const gchar *path)
 {
   gchar *metadata_json;
@@ -330,10 +281,6 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
       goto out;
     }
 
-  /* Store the prefix association metadata for this given lang, so
-   * the various meta databases which query over this database can
-   * use its prefixes
-   */
   root = json_parser_get_root (parser);
   if (root != NULL)
     xb_database_manager_add_queryparser_prefixes (self, query_parser,
@@ -405,14 +352,11 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
 static DatabasePayload *
 xb_database_manager_create_db_internal (XbDatabaseManager *self,
                                         const gchar *path,
-                                        const gchar *lang,
                                         GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   XapianDatabase *db;
-  XapianStem *stem;
   GError *error = NULL;
-  const gchar *stem_lang;
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
   GFileMonitor *monitor;
@@ -430,39 +374,13 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
       return NULL;
     }
 
-  stem = g_hash_table_lookup (priv->stemmers, lang);
-  if (stem == NULL)
-    {
-      if (stem_supports_language (lang))
-        stem_lang = lang;
-      else
-        stem_lang = "none";
-
-      stem = xapian_stem_new_for_language (stem_lang, &error);
-      if (error != NULL)
-        {
-          g_set_error (error_out, XB_ERROR,
-                       XB_ERROR_UNSUPPORTED_LANG,
-                       "Cannot create XapianStem for language %s: %s",
-                       lang, error->message);
-          g_error_free (error);
-          return NULL;
-        }
-
-      g_hash_table_insert (priv->stemmers, g_strdup (lang), stem);
-    }
-
-  g_assert (stem != NULL);
-
   /* Create a XapianQueryParser for this particular database, stemming by its
    * registered language.
    */
   query_parser = xapian_query_parser_new ();
-  xapian_query_parser_set_stemming_strategy (query_parser, XAPIAN_STEM_STRATEGY_STEM_SOME);
-  xapian_query_parser_set_stemmer (query_parser, stem);
   xapian_query_parser_set_database (query_parser, db);
 
-  xb_database_manager_register_prefixes (self, db, query_parser, lang, path);
+  xb_database_manager_register_prefixes (self, db, query_parser, path);
 
   if (!xb_database_manager_register_stopwords (self, db, query_parser, &error))
     {
@@ -472,7 +390,7 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
     }
 
   monitor = xb_database_manager_monitor_db (self, path);
-  payload = database_payload_new (db, query_parser, self, monitor, path, lang);
+  payload = database_payload_new (db, query_parser, self, monitor, path);
   g_hash_table_insert (priv->databases, g_strdup (path), payload);
 
   g_signal_connect (monitor, "changed",
@@ -492,17 +410,12 @@ xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
                                          GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
-  const gchar *lang;
   GError *error = NULL;
   DatabasePayload *payload;
 
-  lang = g_hash_table_lookup (query, "lang");
-  if (lang == NULL)
-    lang = "none";
-
   payload = g_hash_table_lookup (priv->databases, path);
   if (payload == NULL)
-    payload = xb_database_manager_create_db_internal (self, path, lang, &error);
+    payload = xb_database_manager_create_db_internal (self, path, &error);
 
   if (error != NULL)
     {
@@ -516,12 +429,11 @@ xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
 gboolean
 xb_database_manager_create_db (XbDatabaseManager *self,
                                const gchar *path,
-                               const gchar *lang,
                                GError **error_out)
 {
   GError *error = NULL;
 
-  xb_database_manager_create_db_internal (self, path, lang, &error);
+  xb_database_manager_create_db_internal (self, path, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -692,6 +604,9 @@ xb_database_manager_query (XbDatabaseManager *self,
   gchar *corrected_query_str = NULL, *query_str = NULL;
   XapianEnquire *enquire = NULL;
   GError *error = NULL;
+  const gchar *lang;
+  XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
+  XapianStem *stem;
   const gchar *str;
   JsonObject *results = NULL, *corrected_results;
 
@@ -709,6 +624,32 @@ xb_database_manager_query (XbDatabaseManager *self,
 
   /* save the query string aside */
   query_str = g_strdup (str);
+
+  lang = g_hash_table_lookup (query_options, QUERY_PARAM_LANG);
+  if (lang == NULL)
+      lang = "none";
+
+  stem = g_hash_table_lookup (priv->stemmers, lang);
+  if (stem == NULL)
+    {
+      stem = xapian_stem_new_for_language (lang, &error);
+      if (error != NULL)
+        {
+          g_set_error (error_out, XB_ERROR,
+                       XB_ERROR_UNSUPPORTED_LANG,
+                       "Cannot create XapianStem for language %s: %s",
+                       lang, error->message);
+          g_error_free (error);
+          goto out;
+        }
+
+      g_hash_table_insert (priv->stemmers, g_strdup (lang), stem);
+    }
+
+  g_assert (stem != NULL);
+
+  xapian_query_parser_set_stemmer (payload->qp, stem);
+  xapian_query_parser_set_stemming_strategy (payload->qp, XAPIAN_STEM_STRATEGY_STEM_SOME);
 
   enquire = xapian_enquire_new (payload->db, &error);
   if (error != NULL)

@@ -49,7 +49,6 @@ XbDatabaseManager *xb_database_manager_new (void);
 
 gboolean xb_database_manager_create_db (XbDatabaseManager *self,
                                         const gchar *path,
-                                        const gchar *lang,
                                         GError **error_out);
 
 JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
