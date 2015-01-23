@@ -717,7 +717,7 @@ xb_database_manager_query (XbDatabaseManager *self,
       goto out;
     }
 
-  parsed_query = xapian_query_parser_parse_query_full (payload->qp, str,
+  parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
                                                        QUERY_PARSER_FLAGS, "", &error);
 
   if (error != NULL)
