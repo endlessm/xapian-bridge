@@ -31,7 +31,7 @@ create_sample_db (DatabaseManagerFixture *fixture,
   gchar *path;
 
   path = test_get_sample_db_path ();
-  res = xb_database_manager_create_db (fixture->manager, path, "en", error);
+  res = xb_database_manager_create_db (fixture->manager, path, error);
 
   if (path_out != NULL)
     *path_out = path;
@@ -192,7 +192,7 @@ test_create_invalid_db_fails (DatabaseManagerFixture *fixture,
   GError *error = NULL;
 
   path = test_get_invalid_db_path ();
-  res = xb_database_manager_create_db (fixture->manager, path, "en", &error);
+  res = xb_database_manager_create_db (fixture->manager, path, &error);
   g_free (path);
 
   g_assert_false (res);
