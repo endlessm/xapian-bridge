@@ -28,7 +28,7 @@
 
 #define DEFAULT_PORT 3004
 #define META_DB_ALL "_all"
-#define MIME_JSON "application/json"
+#define MIME_JSON "application/json; charset=utf-8"
 #define SYSTEMD_LISTEN_FD 3
 
 typedef struct {
