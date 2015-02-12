@@ -25,6 +25,7 @@
 #define QUERY_PARAM_CUTOFF "cutoff"
 #define QUERY_PARAM_LIMIT "limit"
 #define QUERY_PARAM_LANG "lang"
+#define QUERY_PARAM_MATCH_ALL "matchAll"
 #define QUERY_PARAM_OFFSET "offset"
 #define QUERY_PARAM_ORDER "order"
 #define QUERY_PARAM_QUERYSTR "q"
@@ -525,7 +526,8 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
   retval = json_object_new ();
   json_object_set_int_member (retval, RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
   json_object_set_int_member (retval, RESULTS_MEMBER_OFFSET, offset);
-  json_object_set_string_member (retval, RESULTS_MEMBER_QUERYSTR, query_str);
+  if (query_str != NULL)
+      json_object_set_string_member (retval, RESULTS_MEMBER_QUERYSTR, query_str);
 
   results_array = json_array_new ();
   json_object_set_array_member (retval, RESULTS_MEMBER_RESULTS, results_array);
@@ -609,22 +611,13 @@ xb_database_manager_query (XbDatabaseManager *self,
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   XapianStem *stem;
   const gchar *str;
+  const gchar *match_all;
   JsonObject *results = NULL, *corrected_results;
 
   if (database_is_empty (payload->db))
     return create_empty_query_results ();
 
   str = g_hash_table_lookup (query_options, QUERY_PARAM_QUERYSTR);
-  if (str == NULL)
-    {
-      g_set_error (error_out, XB_ERROR,
-                   XB_ERROR_INVALID_PARAMS,
-                   "Query parameter is required for the query");
-      goto out;
-    }
-
-  /* save the query string aside */
-  query_str = g_strdup (str);
 
   lang = g_hash_table_lookup (query_options, QUERY_PARAM_LANG);
   if (lang == NULL)
@@ -659,8 +652,25 @@ xb_database_manager_query (XbDatabaseManager *self,
       goto out;
     }
 
-  parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
-                                                       QUERY_PARSER_FLAGS, "", &error);
+  match_all = g_hash_table_lookup (query_options, QUERY_PARAM_MATCH_ALL);
+  if (match_all != NULL && str == NULL)
+    {
+      parsed_query = xapian_query_new_match_all ();
+    }
+  else if (str != NULL && match_all == NULL)
+    {
+      /* save the query string aside */
+      query_str = g_strdup (str);
+      parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
+                                                           QUERY_PARSER_FLAGS, "", &error);
+    }
+  else
+    {
+      g_set_error (error_out, XB_ERROR,
+                  XB_ERROR_INVALID_PARAMS,
+                  "Exactly one of query parameter or match all parameter is required.");
+      goto out;
+    }
 
   if (error != NULL)
     {

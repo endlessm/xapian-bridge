@@ -56,8 +56,11 @@ assert_json_query_object (JsonObject *object,
   query_offset = json_object_get_int_member (object, "offset");
   g_assert_cmpint (offset, ==, query_offset);
 
-  query_str = json_object_get_string_member (object, "query");
-  g_assert_cmpstr (str, ==, query_str);
+  if (str != NULL)
+    {
+      query_str = json_object_get_string_member (object, "query");
+      g_assert_cmpstr (str, ==, query_str);
+    }
 }
 
 static void
@@ -109,7 +112,21 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   g_clear_error (&error);
   g_hash_table_unref (query);
 
-  /* create a query without query string */
+  /* create a query with both query string and match all param */
+  query = g_hash_table_new (g_str_hash, g_str_equal);
+  g_hash_table_insert (query, "limit", "5");
+  g_hash_table_insert (query, "offset", "0");
+  g_hash_table_insert (query, "q", "a");
+  g_hash_table_insert (query, "matchAll", "1");
+
+  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+
+  g_assert_null (object);
+  g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
+  g_clear_error (&error);
+  g_hash_table_unref (query);
+
+  /* create a query without query string or match all parameter */
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "limit", "5");
   g_hash_table_insert (query, "offset", "0");
@@ -167,6 +184,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
   g_assert_no_error (error);
   g_assert_nonnull (path);
 
+  // Test normal query
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "q", "a");
   g_hash_table_insert (query, "limit", "5");
@@ -177,6 +195,21 @@ test_queries_db (DatabaseManagerFixture *fixture,
   g_assert_nonnull (object);
   g_assert_no_error (error);
   assert_json_query_object (object, 5, 0, "a");
+
+  json_object_unref (object);
+  g_hash_table_unref (query);
+
+  // Test match all query
+  query = g_hash_table_new (g_str_hash, g_str_equal);
+  g_hash_table_insert (query, "matchAll", "1");
+  g_hash_table_insert (query, "limit", "5");
+  g_hash_table_insert (query, "offset", "0");
+
+  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+
+  g_assert_nonnull (object);
+  g_assert_no_error (error);
+  assert_json_query_object (object, 5, 0, NULL);
 
   json_object_unref (object);
   g_hash_table_unref (query);
