@@ -446,37 +446,6 @@ xb_database_manager_create_db (XbDatabaseManager *self,
 }
 
 static JsonObject *
-document_to_json_object (XapianDocument *document)
-{
-  gchar *data;
-  JsonParser *parser;
-  GError *error = NULL;
-  JsonObject *object = NULL;
-  JsonNode *root;
-
-  data = xapian_document_get_data (document);
-  parser = json_parser_new ();
-  json_parser_load_from_data (parser, data, -1, &error);
-
-  if (error != NULL)
-    {
-      g_warning ("Unable to convert XapianDocument to JsonObject: %s",
-                 error->message);
-      g_clear_error (&error);
-      goto out;
-    }
-
-  root = json_parser_get_root (parser);
-  object = json_object_ref (json_node_get_object (root));
-
- out:
-  g_free (data);
-  g_object_unref (parser);
-
-  return object;
-}
-
-static JsonObject *
 xb_database_manager_fetch_results (XbDatabaseManager *self,
                                    XapianEnquire *enquire,
                                    XapianQuery *query,
@@ -485,12 +454,13 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
                                    GError **error_out)
 {
   const gchar *str;
+  gchar *document_data;
   guint limit, offset;
   XapianMSet *matches;
   XapianMSetIterator *iter;
   XapianDocument *document;
   GError *error = NULL;
-  JsonObject *retval, *document_object;
+  JsonObject *retval;
   JsonArray *results_array;
 
   str = g_hash_table_lookup (query_options, QUERY_PARAM_OFFSET);
@@ -544,8 +514,9 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
           continue;
         }
 
-      document_object = document_to_json_object (document);
-      json_array_add_object_element (results_array, document_object);
+      document_data = xapian_document_get_data (document);
+      json_array_add_string_element (results_array, document_data);
+      g_free (document_data);
     }
 
   g_object_unref (iter);
