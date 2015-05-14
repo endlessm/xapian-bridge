@@ -614,7 +614,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   g_assert (stem != NULL);
 
   xapian_query_parser_set_stemmer (payload->qp, stem);
-  xapian_query_parser_set_stemming_strategy (payload->qp, XAPIAN_STEM_STRATEGY_STEM_SOME);
+  xapian_query_parser_set_stemming_strategy (payload->qp, XAPIAN_STEM_STRATEGY_STEM_ALL);
 
   enquire = xapian_enquire_new (payload->db, &error);
   if (error != NULL)
