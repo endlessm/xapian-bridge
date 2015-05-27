@@ -8,7 +8,7 @@ Build-Depends: autotools-dev,
                libglib2.0-dev,
                libjson-glib-dev,
                libsoup2.4-dev (>= 2.48),
-               gir1.2-xapian-1.0,
+               libxapian-glib-1.0-dev,
                systemd
 Standards-Version: 3.9.4
 Section: non-free/libs
