@@ -217,6 +217,42 @@ test_queries_db (DatabaseManagerFixture *fixture,
 }
 
 static void
+test_query_invalid_lang_succeeds (DatabaseManagerFixture *fixture,
+                                  gconstpointer user_data)
+{
+  gboolean res;
+  gchar *path = NULL;
+  GError *error = NULL;
+  GHashTable *query;
+  JsonObject *object;
+
+  res = create_sample_db (fixture, &path, &error);
+
+  g_assert_true (res);
+  g_assert_no_error (error);
+  g_assert_nonnull (path);
+
+  query = g_hash_table_new (g_str_hash, g_str_equal);
+  g_hash_table_insert (query, "q", "a");
+  g_hash_table_insert (query, "limit", "5");
+  g_hash_table_insert (query, "offset", "0");
+  g_hash_table_insert (query, "lang", "asd_LOL.LMAO");
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+                         "Cannot create XapianStem for language*");
+  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+
+  g_test_assert_expected_messages ();
+  g_assert_nonnull (object);
+  g_assert_no_error (error);
+  assert_json_query_object (object, 5, 0, "a");
+
+  json_object_unref (object);
+  g_hash_table_unref (query);
+  g_free (path);
+}
+
+static void
 test_create_invalid_db_fails (DatabaseManagerFixture *fixture,
                               gconstpointer user_data)
 {
@@ -278,6 +314,8 @@ main (int argc,
                       test_query_invalid_db_fails);
   ADD_DBMANAGER_TEST ("/dbmanager/query-invalid-params-fails",
                       test_query_invalid_params_fails);
+  ADD_DBMANAGER_TEST ("/dbmanager/query-invalid-lang-succeeds",
+                      test_query_invalid_lang_succeeds);
 
 #undef ADD_DBMANAGER_TEST
 
