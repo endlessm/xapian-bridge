@@ -600,15 +600,16 @@ xb_database_manager_query (XbDatabaseManager *self,
       stem = xapian_stem_new_for_language (lang, &error);
       if (error != NULL)
         {
-          g_set_error (error_out, XB_ERROR,
-                       XB_ERROR_UNSUPPORTED_LANG,
-                       "Cannot create XapianStem for language %s: %s",
-                       lang, error->message);
-          g_error_free (error);
-          goto out;
-        }
+          g_warning ("Cannot create XapianStem for language %s: %s",
+                     lang, error->message);
+          g_clear_error (&error);
 
-      g_hash_table_insert (priv->stemmers, g_strdup (lang), stem);
+          stem = g_hash_table_lookup (priv->stemmers, "none");
+        }
+      else
+        {
+          g_hash_table_insert (priv->stemmers, g_strdup (lang), stem);
+        }
     }
 
   g_assert (stem != NULL);
