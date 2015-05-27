@@ -184,7 +184,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
   g_assert_no_error (error);
   g_assert_nonnull (path);
 
-  // Test normal query
+  /* Test normal query */
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "q", "a");
   g_hash_table_insert (query, "limit", "5");
@@ -199,7 +199,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
   json_object_unref (object);
   g_hash_table_unref (query);
 
-  // Test match all query
+  /* Test match all query */
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "matchAll", "1");
   g_hash_table_insert (query, "limit", "5");
