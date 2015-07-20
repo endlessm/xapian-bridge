@@ -19,7 +19,7 @@ generate-dbs: generate-test-db
 MAINTAINERCLEANFILES = test/testdb
 
 # Specify a non-system dir for systemd units at distcheck
-DISTCHECK_CONFIGURE_FLAGS = \
+AM_DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir) \
 	$(NULL)
 
