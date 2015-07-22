@@ -48,7 +48,7 @@ AC_INIT([Xapian Bridge], [_XAPIAN_BRIDGE_API_VERSION_MACRO],
     [], [xapian-bridge], [http://endlessm.com])
 # Initialize Automake: enable all warnings and do not insist on GNU standards
 # no-portability suppresses warnings about syntax specific to GNU make
-AM_INIT_AUTOMAKE([-Wall -Wno-portability foreign dist-xz no-dist-gzip 1.9 tar-ustar parallel-tests])
+AM_INIT_AUTOMAKE([-Wall -Wno-portability foreign dist-xz no-dist-gzip 1.11.2 tar-ustar parallel-tests])
 # Avoid spewing garbage over the terminal ('make V=1' to see the garbage)
 AM_SILENT_RULES([yes])
 # Keep Autotools macros local to this source tree
