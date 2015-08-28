@@ -42,6 +42,7 @@ stamp*
 *.gcda
 *.gcno
 /_coverage
+/run_coverage.coverage
 
 # Backup files
 *~
