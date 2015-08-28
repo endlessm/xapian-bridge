@@ -22,6 +22,9 @@ MAINTAINERCLEANFILES = test/testdb
 AM_DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir) \
 	$(NULL)
+if EOS_ENABLE_COVERAGE
+AM_DISTCHECK_CONFIGURE_FLAGS += --enable-coverage --with-coverage-dir=@EOS_COVERAGE_DIR@
+endif EOS_ENABLE_COVERAGE
 
 data/xapian-bridge.service: data/xapian-bridge.service.in Makefile
 	$(MKDIR_P) $(top_builddir)/data
@@ -132,7 +135,9 @@ TESTS = \
 	test-daemon \
 	test-database-manager \
 	test-router \
+	run_coverage.coverage \
 	$(NULL)
+TEST_EXTENSIONS = .coverage
 
 EXTRA_DIST += \
 	test/testdb \
