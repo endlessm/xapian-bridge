@@ -36,6 +36,9 @@
 #define QUERY_RESULTS_MEMBER_QUERYSTR "query"
 #define QUERY_RESULTS_MEMBER_RESULTS "results"
 
+#define FIX_RESULTS_MEMBER_SPELL_CORRECTED_RESULT "spellCorrectedQuery"
+#define FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT "stopWordCorrectedQuery"
+
 #define PREFIX_METADATA_KEY "XbPrefixes"
 #define STOPWORDS_METADATA_KEY "XbStopwords"
 #define QUERY_PARSER_FLAGS XAPIAN_QUERY_PARSER_FEATURE_DEFAULT | \
@@ -558,6 +561,76 @@ create_empty_query_results (void)
   return object;
 }
 
+static JsonObject *
+xb_database_manager_fix_query_internal (XbDatabaseManager *self,
+                           DatabasePayload *payload,
+                           GHashTable *query_options,
+                           GError **error_out)
+{
+  gchar *spell_corrected_query_str = NULL, *no_stop_words = NULL;
+  gchar **words = NULL, **words_iter = NULL;
+  gchar **filtered_words = NULL, **filtered_iter = NULL;
+  GError *error = NULL;
+  const gchar *query_str;
+  const gchar *match_all;
+  XapianStopper *stopper;
+  JsonObject *retval;
+
+  retval = json_object_new ();
+
+  query_str = g_hash_table_lookup (query_options, QUERY_PARAM_QUERYSTR);
+  match_all = g_hash_table_lookup (query_options, QUERY_PARAM_MATCH_ALL);
+
+  stopper = xapian_query_parser_get_stopper (payload->qp);
+
+  if (query_str == NULL || match_all != NULL)
+    {
+      g_set_error (error_out, XB_ERROR,
+                  XB_ERROR_INVALID_PARAMS,
+                  "Query parameter must be set, and must not be match all.");
+      goto out;
+    }
+  else if (stopper != NULL)
+    {
+      words = g_strsplit (query_str, " ", -1);
+      filtered_words = g_new0 (gchar *, g_strv_length (words) + 1);
+
+      filtered_iter = filtered_words;
+      for (words_iter = words; *words_iter != NULL; words_iter++)
+        if (!xapian_stopper_is_stop_term (stopper, *words_iter))
+          *filtered_iter++ = *words_iter;
+
+      no_stop_words = g_strjoinv (" ", filtered_words);
+      json_object_set_string_member (retval, FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT,
+                                     no_stop_words);
+    }
+
+  /* Parse the user's query so we can request a spelling correction. */
+  xapian_query_parser_parse_query_full (payload->qp, query_str,
+                                        QUERY_PARSER_FLAGS, "", &error);
+
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      goto out;
+    }
+
+  spell_corrected_query_str = xapian_query_parser_get_corrected_query_string (payload->qp);
+  if (spell_corrected_query_str != NULL && spell_corrected_query_str[0] != '\0')
+    {
+      json_object_set_string_member (retval, FIX_RESULTS_MEMBER_SPELL_CORRECTED_RESULT,
+                                     spell_corrected_query_str);
+    }
+
+ out:
+  g_free (filtered_words);
+  g_free (no_stop_words);
+  g_free (spell_corrected_query_str);
+  g_strfreev (words);
+
+  return retval;
+}
+
 /* Queries the database with the given parameters, and returns a JSON object
  * with the following members:
  *   - numResults: number of results being returned
@@ -565,7 +638,6 @@ create_empty_query_results (void)
  *   - query: the query string that produced the results
  *   - results: an array of strings for every result document, sorted according
  *              to the query parameters
- *   - spellCorrectedResults: similar to results, but include spell corrections
  */
 static JsonObject *
 xb_database_manager_query (XbDatabaseManager *self,
@@ -687,6 +759,27 @@ xb_database_manager_query (XbDatabaseManager *self,
   g_free (query_str);
 
   return results;
+}
+
+JsonObject *
+xb_database_manager_fix_query (XbDatabaseManager *self,
+                              const gchar *path,
+                              GHashTable *query,
+                              GError **error_out)
+{
+  DatabasePayload *payload;
+  GError *error = NULL;
+
+  g_assert (path != NULL);
+
+  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      return FALSE;
+    }
+
+  return xb_database_manager_fix_query_internal (self, payload, query, error_out);
 }
 
 /* If a database exists, queries it with the following options:

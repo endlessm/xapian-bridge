@@ -131,6 +131,51 @@ server_get_query_callback (GHashTable *params,
     }
 }
 
+/* GET /fix - fix a user query
+ * Returns:
+ *     200 - Query was successfully fixed (though no changes may have occurred)
+ *     400 - One of the required parameters wasn't specified
+ *     404 - No database was found at index_name
+ */
+static void
+server_get_fix_callback (GHashTable *params,
+                         GHashTable *query,
+                         SoupMessage *message,
+                         gpointer user_data)
+{
+  XapianBridge *xb = user_data;
+  JsonObject *result;
+  GError *error = NULL;
+  const gchar *path;
+
+  path = g_hash_table_lookup (query, "path");
+  if (path == NULL)
+    {
+      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      return;
+    }
+
+  result = xb_database_manager_fix_query (xb->manager, path, query, &error);
+
+  if (result != NULL)
+    {
+      server_send_response (message, SOUP_STATUS_OK, NULL, result);
+      json_object_unref (result);
+    }
+  else
+    {
+      if (g_error_matches (error, XB_ERROR, XB_ERROR_DATABASE_NOT_FOUND))
+        server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
+      else if (g_error_matches (error, XB_ERROR, XB_ERROR_INVALID_PARAMS))
+        server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      else
+        server_send_response (message, SOUP_STATUS_INTERNAL_SERVER_ERROR, NULL, NULL);
+
+      g_critical ("Unable to fix user query: %s", error->message);
+      g_clear_error (&error);
+    }
+}
+
 static gboolean
 sigterm_handler (gpointer user_data)
 {
@@ -215,6 +260,8 @@ xapian_bridge_new (GError **error_out)
 
   xb_routed_server_get (server, "/query",
                         server_get_query_callback, xb);
+  xb_routed_server_get (server, "/fix",
+                        server_get_fix_callback, xb);
 
   return xb;
 }
