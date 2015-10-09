@@ -31,11 +31,13 @@
 #define QUERY_PARAM_QUERYSTR "q"
 #define QUERY_PARAM_SORT_BY "sortBy"
 
-#define RESULTS_MEMBER_NUM_RESULTS "numResults"
-#define RESULTS_MEMBER_OFFSET "offset"
-#define RESULTS_MEMBER_QUERYSTR "query"
-#define RESULTS_MEMBER_RESULTS "results"
-#define RESULTS_MEMBER_SPELL_CORRECTED_RESULTS "spellCorrectedResults"
+#define QUERY_RESULTS_MEMBER_NUM_RESULTS "numResults"
+#define QUERY_RESULTS_MEMBER_OFFSET "offset"
+#define QUERY_RESULTS_MEMBER_QUERYSTR "query"
+#define QUERY_RESULTS_MEMBER_RESULTS "results"
+
+#define FIX_RESULTS_MEMBER_SPELL_CORRECTED_RESULT "spellCorrectedQuery"
+#define FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT "stopWordCorrectedQuery"
 
 #define PREFIX_METADATA_KEY "XbPrefixes"
 #define STOPWORDS_METADATA_KEY "XbStopwords"
@@ -494,13 +496,13 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
     }
 
   retval = json_object_new ();
-  json_object_set_int_member (retval, RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
-  json_object_set_int_member (retval, RESULTS_MEMBER_OFFSET, offset);
+  json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
+  json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_OFFSET, offset);
   if (query_str != NULL)
-      json_object_set_string_member (retval, RESULTS_MEMBER_QUERYSTR, query_str);
+      json_object_set_string_member (retval, QUERY_RESULTS_MEMBER_QUERYSTR, query_str);
 
   results_array = json_array_new ();
-  json_object_set_array_member (retval, RESULTS_MEMBER_RESULTS, results_array);
+  json_object_set_array_member (retval, QUERY_RESULTS_MEMBER_RESULTS, results_array);
 
   iter = xapian_mset_get_begin (matches);
   while (xapian_mset_iterator_next (iter))
@@ -552,11 +554,81 @@ create_empty_query_results (void)
   JsonObject *object;
 
   object = json_object_new ();
-  json_object_set_int_member (object, RESULTS_MEMBER_NUM_RESULTS, 0);
-  json_object_set_int_member (object, RESULTS_MEMBER_OFFSET, 0);
-  json_object_set_array_member (object, RESULTS_MEMBER_RESULTS, json_array_new ());
+  json_object_set_int_member (object, QUERY_RESULTS_MEMBER_NUM_RESULTS, 0);
+  json_object_set_int_member (object, QUERY_RESULTS_MEMBER_OFFSET, 0);
+  json_object_set_array_member (object, QUERY_RESULTS_MEMBER_RESULTS, json_array_new ());
 
   return object;
+}
+
+static JsonObject *
+xb_database_manager_fix_query_internal (XbDatabaseManager *self,
+                           DatabasePayload *payload,
+                           GHashTable *query_options,
+                           GError **error_out)
+{
+  gchar *spell_corrected_query_str = NULL, *no_stop_words = NULL;
+  gchar **words = NULL, **words_iter = NULL;
+  gchar **filtered_words = NULL, **filtered_iter = NULL;
+  GError *error = NULL;
+  const gchar *query_str;
+  const gchar *match_all;
+  XapianStopper *stopper;
+  JsonObject *retval;
+
+  retval = json_object_new ();
+
+  query_str = g_hash_table_lookup (query_options, QUERY_PARAM_QUERYSTR);
+  match_all = g_hash_table_lookup (query_options, QUERY_PARAM_MATCH_ALL);
+
+  stopper = xapian_query_parser_get_stopper (payload->qp);
+
+  if (query_str == NULL || match_all != NULL)
+    {
+      g_set_error (error_out, XB_ERROR,
+                  XB_ERROR_INVALID_PARAMS,
+                  "Query parameter must be set, and must not be match all.");
+      goto out;
+    }
+  else if (stopper != NULL)
+    {
+      words = g_strsplit (query_str, " ", -1);
+      filtered_words = g_new0 (gchar *, g_strv_length (words) + 1);
+
+      filtered_iter = filtered_words;
+      for (words_iter = words; *words_iter != NULL; words_iter++)
+        if (!xapian_stopper_is_stop_term (stopper, *words_iter))
+          *filtered_iter++ = *words_iter;
+
+      no_stop_words = g_strjoinv (" ", filtered_words);
+      json_object_set_string_member (retval, FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT,
+                                     no_stop_words);
+    }
+
+  /* Parse the user's query so we can request a spelling correction. */
+  xapian_query_parser_parse_query_full (payload->qp, query_str,
+                                        QUERY_PARSER_FLAGS, "", &error);
+
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      goto out;
+    }
+
+  spell_corrected_query_str = xapian_query_parser_get_corrected_query_string (payload->qp);
+  if (spell_corrected_query_str != NULL && spell_corrected_query_str[0] != '\0')
+    {
+      json_object_set_string_member (retval, FIX_RESULTS_MEMBER_SPELL_CORRECTED_RESULT,
+                                     spell_corrected_query_str);
+    }
+
+ out:
+  g_free (filtered_words);
+  g_free (no_stop_words);
+  g_free (spell_corrected_query_str);
+  g_strfreev (words);
+
+  return retval;
 }
 
 /* Queries the database with the given parameters, and returns a JSON object
@@ -566,7 +638,6 @@ create_empty_query_results (void)
  *   - query: the query string that produced the results
  *   - results: an array of strings for every result document, sorted according
  *              to the query parameters
- *   - spellCorrectedResults: similar to results, but include spell corrections
  */
 static JsonObject *
 xb_database_manager_query (XbDatabaseManager *self,
@@ -574,8 +645,8 @@ xb_database_manager_query (XbDatabaseManager *self,
                            GHashTable *query_options,
                            GError **error_out)
 {
-  XapianQuery *parsed_query = NULL, *corrected_query = NULL;
-  gchar *corrected_query_str = NULL, *query_str = NULL;
+  XapianQuery *parsed_query = NULL;
+  gchar *query_str = NULL;
   XapianEnquire *enquire = NULL;
   GError *error = NULL;
   const gchar *lang;
@@ -583,7 +654,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   XapianStem *stem;
   const gchar *str;
   const gchar *match_all;
-  JsonObject *results = NULL, *corrected_results;
+  JsonObject *results = NULL;
 
   if (database_is_empty (payload->db))
     return create_empty_query_results ();
@@ -682,45 +753,33 @@ xb_database_manager_query (XbDatabaseManager *self,
       goto out;
     }
 
-  /* corrected_query_str will be the empty string if no correction is found */
-  corrected_query_str = xapian_query_parser_get_corrected_query_string (payload->qp);
-  if (corrected_query_str != NULL && corrected_query_str[0] != '\0')
-    {
-      corrected_query = xapian_query_parser_parse_query_full (payload->qp, corrected_query_str,
-                                                              QUERY_PARSER_FLAGS, "", &error);
-      if (error != NULL)
-        {
-          g_warning ("Unable to parse corrected query: %s", error->message);
-          g_error_free (error);
-        }
-    }
-
-  if (corrected_query != NULL)
-    {
-      corrected_results = xb_database_manager_fetch_results (self, enquire, corrected_query,
-                                                             corrected_query_str, query_options, &error);
-      if (error != NULL)
-        {
-          g_warning ("Unable to fetch corrected results: %s", error->message);
-          g_error_free (error);
-        }
-      else
-        {
-          json_object_set_object_member (results,
-                                         RESULTS_MEMBER_SPELL_CORRECTED_RESULTS,
-                                         corrected_results);
-        }
-
-      g_object_unref (corrected_query);
-    }
-
  out:
   g_clear_object (&parsed_query);
   g_clear_object (&enquire);
-  g_free (corrected_query_str);
   g_free (query_str);
 
   return results;
+}
+
+JsonObject *
+xb_database_manager_fix_query (XbDatabaseManager *self,
+                              const gchar *path,
+                              GHashTable *query,
+                              GError **error_out)
+{
+  DatabasePayload *payload;
+  GError *error = NULL;
+
+  g_assert (path != NULL);
+
+  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  if (error != NULL)
+    {
+      g_propagate_error (error_out, error);
+      return FALSE;
+    }
+
+  return xb_database_manager_fix_query_internal (self, payload, query, error_out);
 }
 
 /* If a database exists, queries it with the following options:
