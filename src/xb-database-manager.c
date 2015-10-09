@@ -31,11 +31,10 @@
 #define QUERY_PARAM_QUERYSTR "q"
 #define QUERY_PARAM_SORT_BY "sortBy"
 
-#define RESULTS_MEMBER_NUM_RESULTS "numResults"
-#define RESULTS_MEMBER_OFFSET "offset"
-#define RESULTS_MEMBER_QUERYSTR "query"
-#define RESULTS_MEMBER_RESULTS "results"
-#define RESULTS_MEMBER_SPELL_CORRECTED_RESULTS "spellCorrectedResults"
+#define QUERY_RESULTS_MEMBER_NUM_RESULTS "numResults"
+#define QUERY_RESULTS_MEMBER_OFFSET "offset"
+#define QUERY_RESULTS_MEMBER_QUERYSTR "query"
+#define QUERY_RESULTS_MEMBER_RESULTS "results"
 
 #define PREFIX_METADATA_KEY "XbPrefixes"
 #define STOPWORDS_METADATA_KEY "XbStopwords"
@@ -494,13 +493,13 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
     }
 
   retval = json_object_new ();
-  json_object_set_int_member (retval, RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
-  json_object_set_int_member (retval, RESULTS_MEMBER_OFFSET, offset);
+  json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
+  json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_OFFSET, offset);
   if (query_str != NULL)
-      json_object_set_string_member (retval, RESULTS_MEMBER_QUERYSTR, query_str);
+      json_object_set_string_member (retval, QUERY_RESULTS_MEMBER_QUERYSTR, query_str);
 
   results_array = json_array_new ();
-  json_object_set_array_member (retval, RESULTS_MEMBER_RESULTS, results_array);
+  json_object_set_array_member (retval, QUERY_RESULTS_MEMBER_RESULTS, results_array);
 
   iter = xapian_mset_get_begin (matches);
   while (xapian_mset_iterator_next (iter))
@@ -552,9 +551,9 @@ create_empty_query_results (void)
   JsonObject *object;
 
   object = json_object_new ();
-  json_object_set_int_member (object, RESULTS_MEMBER_NUM_RESULTS, 0);
-  json_object_set_int_member (object, RESULTS_MEMBER_OFFSET, 0);
-  json_object_set_array_member (object, RESULTS_MEMBER_RESULTS, json_array_new ());
+  json_object_set_int_member (object, QUERY_RESULTS_MEMBER_NUM_RESULTS, 0);
+  json_object_set_int_member (object, QUERY_RESULTS_MEMBER_OFFSET, 0);
+  json_object_set_array_member (object, QUERY_RESULTS_MEMBER_RESULTS, json_array_new ());
 
   return object;
 }
