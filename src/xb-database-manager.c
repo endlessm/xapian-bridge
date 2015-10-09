@@ -573,8 +573,8 @@ xb_database_manager_query (XbDatabaseManager *self,
                            GHashTable *query_options,
                            GError **error_out)
 {
-  XapianQuery *parsed_query = NULL, *corrected_query = NULL;
-  gchar *corrected_query_str = NULL, *query_str = NULL;
+  XapianQuery *parsed_query = NULL;
+  gchar *query_str = NULL;
   XapianEnquire *enquire = NULL;
   GError *error = NULL;
   const gchar *lang;
@@ -582,7 +582,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   XapianStem *stem;
   const gchar *str;
   const gchar *match_all;
-  JsonObject *results = NULL, *corrected_results;
+  JsonObject *results = NULL;
 
   if (database_is_empty (payload->db))
     return create_empty_query_results ();
@@ -681,42 +681,9 @@ xb_database_manager_query (XbDatabaseManager *self,
       goto out;
     }
 
-  /* corrected_query_str will be the empty string if no correction is found */
-  corrected_query_str = xapian_query_parser_get_corrected_query_string (payload->qp);
-  if (corrected_query_str != NULL && corrected_query_str[0] != '\0')
-    {
-      corrected_query = xapian_query_parser_parse_query_full (payload->qp, corrected_query_str,
-                                                              QUERY_PARSER_FLAGS, "", &error);
-      if (error != NULL)
-        {
-          g_warning ("Unable to parse corrected query: %s", error->message);
-          g_error_free (error);
-        }
-    }
-
-  if (corrected_query != NULL)
-    {
-      corrected_results = xb_database_manager_fetch_results (self, enquire, corrected_query,
-                                                             corrected_query_str, query_options, &error);
-      if (error != NULL)
-        {
-          g_warning ("Unable to fetch corrected results: %s", error->message);
-          g_error_free (error);
-        }
-      else
-        {
-          json_object_set_object_member (results,
-                                         RESULTS_MEMBER_SPELL_CORRECTED_RESULTS,
-                                         corrected_results);
-        }
-
-      g_object_unref (corrected_query);
-    }
-
  out:
   g_clear_object (&parsed_query);
   g_clear_object (&enquire);
-  g_free (corrected_query_str);
   g_free (query_str);
 
   return results;
