@@ -408,10 +408,9 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 }
 
 static DatabasePayload *
-xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
-                                         const gchar *path,
-                                         GHashTable *query,
-                                         GError **error_out)
+xb_database_manager_ensure_db (XbDatabaseManager *self,
+                               const gchar *path,
+                               GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   GError *error = NULL;
@@ -772,7 +771,7 @@ xb_database_manager_fix_query (XbDatabaseManager *self,
 
   g_assert (path != NULL);
 
-  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  payload = xb_database_manager_ensure_db (self, path, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -803,7 +802,7 @@ xb_database_manager_query_db (XbDatabaseManager *self,
 
   g_assert (path != NULL);
 
-  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  payload = xb_database_manager_ensure_db (self, path, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
