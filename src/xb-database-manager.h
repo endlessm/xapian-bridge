@@ -45,6 +45,7 @@ struct _XbDatabaseManager
 
 typedef struct {
     const char *path;
+    off_t offset;
 } XbDatabase;
 
 GType xb_database_manager_get_type (void) G_GNUC_CONST;

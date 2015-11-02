@@ -98,6 +98,12 @@ fill_xbdb_from_query (SoupMessage *message,
       return FALSE;
     }
 
+  const char *offset = g_hash_table_lookup (query, "db_offset");
+  if (offset)
+    db->offset = g_ascii_strtoull (offset, NULL, 10);
+  else
+    db->offset = 0;
+
   return TRUE;
 }
 

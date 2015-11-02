@@ -369,7 +369,11 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 
   g_assert (!g_hash_table_contains (priv->databases, xbdb.path));
 
-  db = xapian_database_new_with_path (xbdb.path, &error);
+  db = g_initable_new (XAPIAN_TYPE_DATABASE,
+                       NULL, &error,
+                       "path", xbdb.path,
+                       "offset", xbdb.offset,
+                       NULL);
   if (error != NULL)
     {
       g_set_error (error_out, XB_ERROR,
@@ -425,6 +429,8 @@ xb_database_manager_ensure_db (XbDatabaseManager *self,
   GError *error = NULL;
   DatabasePayload *payload;
 
+  /* XXX: We're assuming that only one DB will exist at a given path, even
+   * including offset... */
   payload = g_hash_table_lookup (priv->databases, db.path);
   if (payload == NULL)
     payload = xb_database_manager_create_db_internal (self, db, &error);
