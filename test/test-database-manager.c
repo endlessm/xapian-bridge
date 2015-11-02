@@ -22,21 +22,24 @@ setup (DatabaseManagerFixture *fixture,
   fixture->manager = xb_database_manager_new ();
 }
 
+static XbDatabase
+get_sample_db (void)
+{
+  return ((XbDatabase) { .path = test_get_sample_db_path () });
+}
+
 static gboolean
 create_sample_db (DatabaseManagerFixture *fixture,
-                  gchar **path_out,
+                  XbDatabase *db_out,
                   GError **error)
 {
   gboolean res;
-  gchar *path;
+  XbDatabase db = get_sample_db ();
 
-  path = test_get_sample_db_path ();
-  res = xb_database_manager_create_db (fixture->manager, path, error);
+  res = xb_database_manager_create_db (fixture->manager, db, error);
 
-  if (path_out != NULL)
-    *path_out = path;
-  else
-    g_free (path);
+  if (db_out)
+    *db_out = db;
 
   return res;
 }
@@ -70,19 +73,19 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   GHashTable *query;
   JsonObject *object;
   gboolean res;
-  gchar *path = NULL;
+  XbDatabase db;
   GError *error = NULL;
 
-  res = create_sample_db (fixture, &path, &error);
+  res = create_sample_db (fixture, &db, &error);
 
   g_assert_true (res);
   g_assert_no_error (error);
-  g_assert_nonnull (path);
+  g_assert_nonnull (db.path);
 
   /* create an empty query */
   query = g_hash_table_new (g_str_hash, g_str_equal);
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
@@ -93,7 +96,7 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "q", "a");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
@@ -105,7 +108,7 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "q", "a");
   g_hash_table_insert (query, "limit", "5");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
@@ -119,7 +122,7 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "q", "a");
   g_hash_table_insert (query, "matchAll", "1");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
@@ -131,13 +134,13 @@ test_query_invalid_params_fails (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "limit", "5");
   g_hash_table_insert (query, "offset", "0");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PARAMS);
   g_clear_error (&error);
   g_hash_table_unref (query);
-  g_free (path);
+  g_free ((char *) db.path);
 }
 
 static void
@@ -148,6 +151,7 @@ test_query_invalid_db_fails (DatabaseManagerFixture *fixture,
   JsonObject *object;
   gboolean res;
   GError *error = NULL;
+  XbDatabase db = { .path = "invalid" };
 
   res = create_sample_db (fixture, NULL, &error);
 
@@ -159,7 +163,7 @@ test_query_invalid_db_fails (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "limit", "5");
   g_hash_table_insert (query, "offset", "0");
 
-  object = xb_database_manager_query_db (fixture->manager, "invalid", query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_null (object);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PATH);
@@ -175,14 +179,14 @@ test_queries_db (DatabaseManagerFixture *fixture,
   GHashTable *query;
   JsonObject *object;
   gboolean res;
-  gchar *path = NULL;
+  XbDatabase db;
   GError *error = NULL;
 
-  res = create_sample_db (fixture, &path, &error);
+  res = create_sample_db (fixture, &db, &error);
 
   g_assert_true (res);
   g_assert_no_error (error);
-  g_assert_nonnull (path);
+  g_assert_nonnull (db.path);
 
   /* Test normal query */
   query = g_hash_table_new (g_str_hash, g_str_equal);
@@ -190,7 +194,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "limit", "5");
   g_hash_table_insert (query, "offset", "0");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_nonnull (object);
   g_assert_no_error (error);
@@ -205,7 +209,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
   g_hash_table_insert (query, "limit", "5");
   g_hash_table_insert (query, "offset", "0");
 
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_assert_nonnull (object);
   g_assert_no_error (error);
@@ -213,7 +217,7 @@ test_queries_db (DatabaseManagerFixture *fixture,
 
   json_object_unref (object);
   g_hash_table_unref (query);
-  g_free (path);
+  g_free ((char *) db.path);
 }
 
 static void
@@ -221,16 +225,16 @@ test_query_invalid_lang_succeeds (DatabaseManagerFixture *fixture,
                                   gconstpointer user_data)
 {
   gboolean res;
-  gchar *path = NULL;
   GError *error = NULL;
   GHashTable *query;
+  XbDatabase db;
   JsonObject *object;
 
-  res = create_sample_db (fixture, &path, &error);
+  res = create_sample_db (fixture, &db, &error);
 
   g_assert_true (res);
   g_assert_no_error (error);
-  g_assert_nonnull (path);
+  g_assert_nonnull (db.path);
 
   query = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (query, "q", "a");
@@ -240,7 +244,7 @@ test_query_invalid_lang_succeeds (DatabaseManagerFixture *fixture,
 
   g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                          "Cannot create XapianStem for language*");
-  object = xb_database_manager_query_db (fixture->manager, path, query, &error);
+  object = xb_database_manager_query_db (fixture->manager, db, query, &error);
 
   g_test_assert_expected_messages ();
   g_assert_nonnull (object);
@@ -249,7 +253,7 @@ test_query_invalid_lang_succeeds (DatabaseManagerFixture *fixture,
 
   json_object_unref (object);
   g_hash_table_unref (query);
-  g_free (path);
+  g_free ((char *) db.path);
 }
 
 static void
@@ -257,12 +261,11 @@ test_create_invalid_db_fails (DatabaseManagerFixture *fixture,
                               gconstpointer user_data)
 {
   gboolean res;
-  gchar *path;
   GError *error = NULL;
 
-  path = test_get_invalid_db_path ();
-  res = xb_database_manager_create_db (fixture->manager, path, &error);
-  g_free (path);
+  XbDatabase db = { .path = test_get_invalid_db_path () };
+  res = xb_database_manager_create_db (fixture->manager, db, &error);
+  g_free ((char *) db.path);
 
   g_assert_false (res);
   g_assert_error (error, XB_ERROR, XB_ERROR_INVALID_PATH);
@@ -274,16 +277,16 @@ test_creates_db (DatabaseManagerFixture *fixture,
                  gconstpointer user_data)
 {
   gboolean res;
-  gchar *path = NULL;
+  XbDatabase db;
   GError *error = NULL;
 
-  res = create_sample_db (fixture, &path, &error);
+  res = create_sample_db (fixture, &db, &error);
 
   g_assert_true (res);
   g_assert_no_error (error);
-  g_assert_nonnull (path);
+  g_assert_nonnull (db.path);
 
-  g_free (path);
+  g_free ((char *) db.path);
 }
 
 static void
