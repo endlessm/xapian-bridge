@@ -256,23 +256,23 @@ xb_database_manager_init (XbDatabaseManager *self)
                                            g_free, (GDestroyNotify) database_payload_free);
 }
 
-static void
+static gboolean
 xb_database_manager_register_prefixes (XbDatabaseManager *self,
                                        XapianDatabase *db,
                                        XapianQueryParser *query_parser,
-                                       const gchar *path)
+                                       GError **error_out)
 {
   gchar *metadata_json;
   GError *error = NULL;
   JsonParser *parser = NULL;
   JsonNode *root;
+  gboolean ret = FALSE;
 
   /* Attempt to read the database's custom prefix association metadata */
   metadata_json = xapian_database_get_metadata (db, PREFIX_METADATA_KEY, &error);
   if (error != NULL)
     {
-      g_warning ("Could not register prefixes for database %s: %s",
-                 path, error->message);
+      g_propagate_error (error_out, error);
       goto out;
     }
 
@@ -280,8 +280,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   json_parser_load_from_data (parser, metadata_json, -1, &error);
   if (error != NULL)
     {
-      g_warning ("Could not parse JSON prefixes metadata for database %s: %s",
-                 path, error->message);
+      g_propagate_error (error_out, error);
       goto out;
     }
 
@@ -289,6 +288,8 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   if (root != NULL)
     xb_database_manager_add_queryparser_prefixes (self, query_parser,
                                                   json_node_get_object (root));
+
+  ret = TRUE;
 
  out:
   /* If there was an error, just use the "standard" prefix map */
@@ -298,6 +299,7 @@ xb_database_manager_register_prefixes (XbDatabaseManager *self,
   g_clear_error (&error);
   g_clear_object (&parser);
   g_free (metadata_json);
+  return ret;
 }
 
 static gboolean
@@ -355,7 +357,7 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
  */
 static DatabasePayload *
 xb_database_manager_create_db_internal (XbDatabaseManager *self,
-                                        const gchar *path,
+                                        XbDatabase xbdb,
                                         GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
@@ -365,15 +367,19 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   DatabasePayload *payload;
   GFileMonitor *monitor;
 
-  g_assert (!g_hash_table_contains (priv->databases, path));
+  g_assert (!g_hash_table_contains (priv->databases, xbdb.path));
 
-  db = xapian_database_new_with_path (path, &error);
+  db = g_initable_new (XAPIAN_TYPE_DATABASE,
+                       NULL, &error,
+                       "path", xbdb.path,
+                       "offset", xbdb.offset,
+                       NULL);
   if (error != NULL)
     {
       g_set_error (error_out, XB_ERROR,
                    XB_ERROR_INVALID_PATH,
                    "Cannot create XapianDatabase for path %s: %s",
-                   path, error->message);
+                   xbdb.path, error->message);
       g_error_free (error);
       return NULL;
     }
@@ -384,18 +390,25 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   query_parser = xapian_query_parser_new ();
   xapian_query_parser_set_database (query_parser, db);
 
-  xb_database_manager_register_prefixes (self, db, query_parser, path);
+  if (!xb_database_manager_register_prefixes (self, db, query_parser, &error))
+    {
+      /* Non-fatal */
+      g_warning ("Could not register prefixes for database %s: %s",
+                 xbdb.path, error->message);
+      g_clear_error (&error);
+    }
 
   if (!xb_database_manager_register_stopwords (self, db, query_parser, &error))
     {
       /* Non-fatal */
-      g_warning ("Could not add stop words for database %s: %s.", path, error->message);
+      g_warning ("Could not add stop words for database %s: %s.",
+                 xbdb.path, error->message);
       g_clear_error (&error);
     }
 
-  monitor = xb_database_manager_monitor_db (self, path);
-  payload = database_payload_new (db, query_parser, self, monitor, path);
-  g_hash_table_insert (priv->databases, g_strdup (path), payload);
+  monitor = xb_database_manager_monitor_db (self, xbdb.path);
+  payload = database_payload_new (db, query_parser, self, monitor, xbdb.path);
+  g_hash_table_insert (priv->databases, g_strdup (xbdb.path), payload);
 
   g_signal_connect (monitor, "changed",
                     G_CALLBACK (database_monitor_changed), payload);
@@ -408,18 +421,19 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 }
 
 static DatabasePayload *
-xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
-                                         const gchar *path,
-                                         GHashTable *query,
-                                         GError **error_out)
+xb_database_manager_ensure_db (XbDatabaseManager *self,
+                               XbDatabase db,
+                               GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   GError *error = NULL;
   DatabasePayload *payload;
 
-  payload = g_hash_table_lookup (priv->databases, path);
+  /* XXX: We're assuming that only one DB will exist at a given path, even
+   * including offset... */
+  payload = g_hash_table_lookup (priv->databases, db.path);
   if (payload == NULL)
-    payload = xb_database_manager_create_db_internal (self, path, &error);
+    payload = xb_database_manager_create_db_internal (self, db, &error);
 
   if (error != NULL)
     {
@@ -432,12 +446,12 @@ xb_database_manager_ensure_db_for_query (XbDatabaseManager *self,
 
 gboolean
 xb_database_manager_create_db (XbDatabaseManager *self,
-                               const gchar *path,
+                               XbDatabase db,
                                GError **error_out)
 {
   GError *error = NULL;
 
-  xb_database_manager_create_db_internal (self, path, &error);
+  xb_database_manager_create_db_internal (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -763,16 +777,14 @@ xb_database_manager_query (XbDatabaseManager *self,
 
 JsonObject *
 xb_database_manager_fix_query (XbDatabaseManager *self,
-                              const gchar *path,
-                              GHashTable *query,
-                              GError **error_out)
+                               XbDatabase db,
+                               GHashTable *query,
+                               GError **error_out)
 {
   DatabasePayload *payload;
   GError *error = NULL;
 
-  g_assert (path != NULL);
-
-  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  payload = xb_database_manager_ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -794,16 +806,14 @@ xb_database_manager_fix_query (XbDatabaseManager *self,
  */
 JsonObject *
 xb_database_manager_query_db (XbDatabaseManager *self,
-                              const gchar *path,
+                              XbDatabase db,
                               GHashTable *query,
                               GError **error_out)
 {
   DatabasePayload *payload;
   GError *error = NULL;
 
-  g_assert (path != NULL);
-
-  payload = xb_database_manager_ensure_db_for_query (self, path, query, &error);
+  payload = xb_database_manager_ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);

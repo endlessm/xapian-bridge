@@ -86,6 +86,27 @@ server_send_response (SoupMessage *message,
     }
 }
 
+static gboolean
+fill_xbdb_from_query (SoupMessage *message,
+                      GHashTable  *query,
+                      XbDatabase  *db)
+{
+  db->path = g_hash_table_lookup (query, "path");
+  if (db->path == NULL)
+    {
+      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      return FALSE;
+    }
+
+  const char *offset = g_hash_table_lookup (query, "db_offset");
+  if (offset)
+    db->offset = g_ascii_strtoull (offset, NULL, 10);
+  else
+    db->offset = 0;
+
+  return TRUE;
+}
+
 /* GET /query - query an index
  * Returns:
  *     200 - Query was successful
@@ -101,16 +122,12 @@ server_get_query_callback (GHashTable *params,
   XapianBridge *xb = user_data;
   JsonObject *result;
   GError *error = NULL;
-  const gchar *path;
+  XbDatabase db;
 
-  path = g_hash_table_lookup (query, "path");
-  if (path == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
+  if (!fill_xbdb_from_query (message, query, &db))
+    return;
 
-  result = xb_database_manager_query_db (xb->manager, path, query, &error);
+  result = xb_database_manager_query_db (xb->manager, db, query, &error);
 
   if (result != NULL)
     {
@@ -146,16 +163,12 @@ server_get_fix_callback (GHashTable *params,
   XapianBridge *xb = user_data;
   JsonObject *result;
   GError *error = NULL;
-  const gchar *path;
+  XbDatabase db;
 
-  path = g_hash_table_lookup (query, "path");
-  if (path == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
+  if (!fill_xbdb_from_query (message, query, &db))
+    return;
 
-  result = xb_database_manager_fix_query (xb->manager, path, query, &error);
+  result = xb_database_manager_fix_query (xb->manager, db, query, &error);
 
   if (result != NULL)
     {

@@ -43,23 +43,28 @@ struct _XbDatabaseManager
     GObject parent;
 };
 
+typedef struct {
+    const char *path;
+    off_t offset;
+} XbDatabase;
+
 GType xb_database_manager_get_type (void) G_GNUC_CONST;
 
 XbDatabaseManager *xb_database_manager_new (void);
 
 gboolean xb_database_manager_create_db (XbDatabaseManager *self,
-                                        const gchar *path,
+                                        XbDatabase db,
                                         GError **error_out);
 
 JsonObject *xb_database_manager_query_db (XbDatabaseManager *self,
-                                          const gchar *path,
+                                          XbDatabase db,
                                           GHashTable *query,
                                           GError **error_out);
 
 JsonObject *xb_database_manager_fix_query (XbDatabaseManager *self,
-                                          const gchar *path,
-                                          GHashTable *query,
-                                          GError **error_out);
+                                           XbDatabase db,
+                                           GHashTable *query,
+                                           GError **error_out);
 
 G_END_DECLS
 
