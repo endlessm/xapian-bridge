@@ -352,6 +352,69 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
   return TRUE;
 }
 
+static XapianDatabase *
+create_database_from_manifest (const char  *manifest_path,
+                               GError     **error_out)
+{
+  GError *error = NULL;
+  g_autofree char *manifest_dir_path = NULL;
+
+  JsonParser *parser = json_parser_new ();
+  if (!json_parser_load_from_file (parser, manifest_path, &error))
+    goto out;
+
+  XapianDatabase *db = xapian_database_new (&error);
+  if (error != NULL)
+    goto out;
+
+  JsonNode *node = json_parser_get_root (parser);
+  JsonObject *json_manifest = json_node_get_object (node);
+  JsonArray *json_dbs = json_object_get_array_member (json_manifest, "xapian_databases");
+
+  manifest_dir_path = g_path_get_dirname (manifest_path);
+
+  GList *dbs = json_array_get_elements (json_dbs), *l;
+  for (l = dbs; l != NULL; l = l->next)
+    {
+      JsonObject *json_db = json_node_get_object (l->data);
+
+      int db_offset = json_object_get_int_member (json_db, "offset");
+
+      const char *relpath = json_object_get_string_member (json_db, "path");
+      g_autofree char *db_path = g_build_filename (manifest_dir_path, relpath, NULL);
+
+      XapianDatabase *internal_db = g_initable_new (XAPIAN_TYPE_DATABASE,
+                                                    NULL, &error,
+                                                    "path", db_path,
+                                                    "offset", db_offset,
+                                                    NULL);
+
+      if (error != NULL)
+        goto out;
+
+      xapian_database_add_database (db, internal_db);
+    }
+
+ out:
+  g_clear_object (&parser);
+  g_propagate_error (error_out, error);
+
+  if (error)
+    g_clear_object (&db);
+
+  return db;
+}
+
+static const char *
+xb_database_path (XbDatabase xbdb)
+{
+  if (xbdb.manifest_path)
+    return xbdb.manifest_path;
+  if (xbdb.path)
+    return xbdb.path;
+  return NULL;
+}
+
 /* Creates a new XapianDatabase for the given path, and indexes it by path,
  * overwriting any existing database with the same name.
  */
@@ -366,20 +429,23 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
   GFileMonitor *monitor;
+  const char *path;
 
-  g_assert (!g_hash_table_contains (priv->databases, xbdb.path));
+  path = xb_database_path (xbdb);
 
-  db = g_initable_new (XAPIAN_TYPE_DATABASE,
-                       NULL, &error,
-                       "path", xbdb.path,
-                       "offset", xbdb.offset,
-                       NULL);
+  g_assert (!g_hash_table_contains (priv->databases, path));
+
+  if (xbdb.manifest_path)
+    db = create_database_from_manifest (xbdb.manifest_path, &error);
+  else
+    db = xapian_database_new_with_path (xbdb.path, &error);
+
   if (error != NULL)
     {
       g_set_error (error_out, XB_ERROR,
                    XB_ERROR_INVALID_PATH,
                    "Cannot create XapianDatabase for path %s: %s",
-                   xbdb.path, error->message);
+                   path, error->message);
       g_error_free (error);
       return NULL;
     }
@@ -394,7 +460,7 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
     {
       /* Non-fatal */
       g_warning ("Could not register prefixes for database %s: %s",
-                 xbdb.path, error->message);
+                 path, error->message);
       g_clear_error (&error);
     }
 
@@ -402,13 +468,13 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
     {
       /* Non-fatal */
       g_warning ("Could not add stop words for database %s: %s.",
-                 xbdb.path, error->message);
+                 path, error->message);
       g_clear_error (&error);
     }
 
-  monitor = xb_database_manager_monitor_db (self, xbdb.path);
-  payload = database_payload_new (db, query_parser, self, monitor, xbdb.path);
-  g_hash_table_insert (priv->databases, g_strdup (xbdb.path), payload);
+  monitor = xb_database_manager_monitor_db (self, path);
+  payload = database_payload_new (db, query_parser, self, monitor, path);
+  g_hash_table_insert (priv->databases, g_strdup (path), payload);
 
   g_signal_connect (monitor, "changed",
                     G_CALLBACK (database_monitor_changed), payload);
@@ -429,9 +495,7 @@ xb_database_manager_ensure_db (XbDatabaseManager *self,
   GError *error = NULL;
   DatabasePayload *payload;
 
-  /* XXX: We're assuming that only one DB will exist at a given path, even
-   * including offset... */
-  payload = g_hash_table_lookup (priv->databases, db.path);
+  payload = g_hash_table_lookup (priv->databases, xb_database_path (db));
   if (payload == NULL)
     payload = xb_database_manager_create_db_internal (self, db, &error);
 
