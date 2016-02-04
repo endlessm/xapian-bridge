@@ -92,17 +92,13 @@ fill_xbdb_from_query (SoupMessage *message,
                       XbDatabase  *db)
 {
   db->path = g_hash_table_lookup (query, "path");
-  if (db->path == NULL)
+  db->manifest_path = g_hash_table_lookup (query, "manifest_path");
+
+  if (db->path == NULL && db->manifest_path == NULL)
     {
       server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
       return FALSE;
     }
-
-  const char *offset = g_hash_table_lookup (query, "db_offset");
-  if (offset)
-    db->offset = g_ascii_strtoull (offset, NULL, 10);
-  else
-    db->offset = 0;
 
   return TRUE;
 }
