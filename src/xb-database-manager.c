@@ -397,10 +397,12 @@ create_database_from_manifest (const char  *manifest_path,
 
  out:
   g_clear_object (&parser);
-  g_propagate_error (error_out, error);
 
   if (error)
-    g_clear_object (&db);
+    {
+      g_propagate_error (error_out, error);
+      g_clear_object (&db);
+    }
 
   return db;
 }
