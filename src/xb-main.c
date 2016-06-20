@@ -89,9 +89,8 @@ server_send_response (SoupMessage *message,
 }
 
 static char *
-get_real_path (const char *path,
-               const char *app_id,
-               gboolean for_subscriptions)
+resolve_flatpak_path (const char *path,
+                      const char *app_id)
 {
   g_autofree char *real_path = g_file_read_link (path, NULL);
   if (!real_path)
@@ -151,9 +150,9 @@ fill_xbdb_from_query (SoupMessage *message,
       if (app_id != NULL)
         {
           if (path != NULL)
-            db->path = get_real_path (path, app_id, FALSE);
+            db->path = resolve_flatpak_path (path, app_id);
           if (manifest_path != NULL)
-            db->manifest_path = get_real_path (manifest_path, app_id, TRUE);
+            db->manifest_path = resolve_flatpak_path (manifest_path, app_id);
         }
     }
 
