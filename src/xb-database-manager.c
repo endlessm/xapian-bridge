@@ -358,12 +358,13 @@ create_database_from_manifest (const char  *manifest_path,
 {
   GError *error = NULL;
   g_autofree char *manifest_dir_path = NULL;
+  XapianDatabase *db = NULL;
 
   JsonParser *parser = json_parser_new ();
   if (!json_parser_load_from_file (parser, manifest_path, &error))
     goto out;
 
-  XapianDatabase *db = xapian_database_new (&error);
+  db = xapian_database_new (&error);
   if (error != NULL)
     goto out;
 

@@ -71,7 +71,8 @@ AC_CACHE_SAVE
 # ------------------
 m4_define(glib_minver, 2.40.0)
 m4_define(soup_minver, 2.48.0)
-PKG_CHECK_MODULES(XAPIAN_BRIDGE, [gio-2.0 >= glib_minver
+PKG_CHECK_MODULES(XAPIAN_BRIDGE, [flatpak,
+                                  gio-2.0 >= glib_minver
                                   json-glib-1.0
                                   libsoup-2.4 >= soup_minver
                                   xapian-glib-1.0])
