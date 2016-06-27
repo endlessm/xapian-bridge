@@ -6,12 +6,6 @@ olddir=`pwd`
 
 cd $srcdir
 
-# Checkout and update submodules
-if test -d .git; then
-    git submodule init .
-    git submodule update --recursive
-fi
-
 # NOCONFIGURE is used by gnome-common
 if test -z "$NOCONFIGURE"; then
     echo "This script will run ./configure automatically. If you wish to pass "
