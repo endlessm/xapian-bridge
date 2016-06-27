@@ -4,9 +4,13 @@ test -n "$srcdir" || srcdir=`dirname "$0"`
 test -n "$srcdir" || srcdir=.
 olddir=`pwd`
 
+cd $srcdir
+
 # Checkout and update submodules
-git submodule init
-git submodule update --recursive
+if test -d .git; then
+    git submodule init .
+    git submodule update --recursive
+fi
 
 # NOCONFIGURE is used by gnome-common
 if test -z "$NOCONFIGURE"; then
@@ -21,4 +25,4 @@ mkdir -p m4
 autoreconf -fi -I m4 || exit $?
 
 cd "$olddir"
-test -n "$NOCONFIGURE" || "./configure" "$@"
+test -n "$NOCONFIGURE" || "$srcdir/configure" "$@"
