@@ -35,6 +35,7 @@
 #define QUERY_RESULTS_MEMBER_OFFSET "offset"
 #define QUERY_RESULTS_MEMBER_QUERYSTR "query"
 #define QUERY_RESULTS_MEMBER_RESULTS "results"
+#define QUERY_RESULTS_MEMBER_UPPER_BOUND "upperBound"
 
 #define FIX_RESULTS_MEMBER_SPELL_CORRECTED_RESULT "spellCorrectedQuery"
 #define FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT "stopWordCorrectedQuery"
@@ -578,6 +579,7 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
 
   retval = json_object_new ();
   json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_NUM_RESULTS, xapian_mset_get_size (matches));
+  json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_UPPER_BOUND, xapian_mset_get_matches_upper_bound (matches));
   json_object_set_int_member (retval, QUERY_RESULTS_MEMBER_OFFSET, offset);
   if (query_str != NULL)
       json_object_set_string_member (retval, QUERY_RESULTS_MEMBER_QUERYSTR, query_str);
