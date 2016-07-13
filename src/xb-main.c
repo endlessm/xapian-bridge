@@ -21,12 +21,10 @@
 #include "xb-router.h"
 #include "xb-routed-server.h"
 
-#include <flatpak.h>
 #include <glib-unix.h>
 #include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define DEFAULT_PORT 3004
 #define META_DB_ALL "_all"
@@ -88,51 +86,6 @@ server_send_response (SoupMessage *message,
     }
 }
 
-static char *
-get_real_path (const char *path,
-               const char *app_id,
-               gboolean for_subscriptions)
-{
-  g_autofree char *real_path = g_file_read_link (path, NULL);
-  if (!real_path)
-    real_path = g_strdup (path);
-
-  g_autoptr(FlatpakInstalledRef) app_ref = NULL;
-
-  g_autoptr(FlatpakInstallation) user_install =
-    flatpak_installation_new_user (NULL, NULL);
-
-  if (user_install)
-    {
-      app_ref =
-        flatpak_installation_get_current_installed_app (user_install,
-                                                        app_id,
-                                                        NULL, NULL);
-    }
-
-  if (!app_ref)
-    {
-      g_autoptr(FlatpakInstallation) system_install =
-        flatpak_installation_new_system (NULL, NULL);
-
-      if (system_install)
-        {
-          app_ref =
-            flatpak_installation_get_current_installed_app (system_install,
-                                                            app_id,
-                                                            NULL, NULL);
-        }
-    }
-
-  if (!app_ref)
-    return NULL;
-
-  const char *deploy_dir = flatpak_installed_ref_get_deploy_dir (app_ref);
-  const char *relative_path = real_path + strlen ("/app");
-
-  return g_build_filename (deploy_dir, "files", relative_path, NULL);
-}
-
 static gboolean
 fill_xbdb_from_query (SoupMessage *message,
                       GHashTable  *query,
@@ -140,22 +93,6 @@ fill_xbdb_from_query (SoupMessage *message,
 {
   db->path = g_hash_table_lookup (query, "path");
   db->manifest_path = g_hash_table_lookup (query, "manifest_path");
-
-  if (db->path == NULL && db->manifest_path == NULL)
-    {
-      const char *app_id = g_hash_table_lookup (query, "flatpak_app_id");
-      const char *path = g_hash_table_lookup (query, "flatpak_path");
-      const char *manifest_path =
-        g_hash_table_lookup (query, "flatpak_manifest_path");
-
-      if (app_id != NULL)
-        {
-          if (path != NULL)
-            db->path = get_real_path (path, app_id, FALSE);
-          if (manifest_path != NULL)
-            db->manifest_path = get_real_path (manifest_path, app_id, TRUE);
-        }
-    }
 
   if (db->path == NULL && db->manifest_path == NULL)
     {
