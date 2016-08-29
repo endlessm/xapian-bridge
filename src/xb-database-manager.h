@@ -52,7 +52,7 @@ GType xb_database_manager_get_type (void) G_GNUC_CONST;
 
 XbDatabaseManager *xb_database_manager_new (void);
 
-gboolean xb_database_manager_create_db (XbDatabaseManager *self,
+gboolean xb_database_manager_ensure_db (XbDatabaseManager *self,
                                         XbDatabase db,
                                         GError **error_out);
 

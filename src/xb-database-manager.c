@@ -409,13 +409,23 @@ create_database_from_manifest (const char  *manifest_path,
   return db;
 }
 
-static const char *
+static char *
+read_link (const char *path)
+{
+  char *resolved_path = g_file_read_link (path, NULL);
+  if (resolved_path)
+    return resolved_path;
+  else
+    return g_strdup (path);
+}
+
+static char *
 xb_database_path (XbDatabase xbdb)
 {
   if (xbdb.manifest_path)
-    return xbdb.manifest_path;
+    return read_link (xbdb.manifest_path);
   if (xbdb.path)
-    return xbdb.path;
+    return read_link (xbdb.path);
   return NULL;
 }
 
@@ -433,7 +443,7 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   XapianQueryParser *query_parser;
   DatabasePayload *payload;
   GFileMonitor *monitor;
-  const char *path;
+  char *path;
 
   path = xb_database_path (xbdb);
 
@@ -486,20 +496,24 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   g_object_unref (db);
   g_object_unref (query_parser);
   g_object_unref (monitor);
+  g_free (path);
 
   return payload;
 }
 
 static DatabasePayload *
-xb_database_manager_ensure_db (XbDatabaseManager *self,
-                               XbDatabase db,
-                               GError **error_out)
+ensure_db (XbDatabaseManager *self,
+           XbDatabase db,
+           GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   GError *error = NULL;
   DatabasePayload *payload;
+  char *path;
 
-  payload = g_hash_table_lookup (priv->databases, xb_database_path (db));
+  path = xb_database_path (db);
+  payload = g_hash_table_lookup (priv->databases, path);
+
   if (payload == NULL)
     payload = xb_database_manager_create_db_internal (self, db, &error);
 
@@ -509,24 +523,17 @@ xb_database_manager_ensure_db (XbDatabaseManager *self,
       return NULL;
     }
 
+  g_free (path);
+
   return payload;
 }
 
 gboolean
-xb_database_manager_create_db (XbDatabaseManager *self,
+xb_database_manager_ensure_db (XbDatabaseManager *self,
                                XbDatabase db,
                                GError **error_out)
 {
-  GError *error = NULL;
-
-  xb_database_manager_create_db_internal (self, db, &error);
-  if (error != NULL)
-    {
-      g_propagate_error (error_out, error);
-      return FALSE;
-    }
-
-  return TRUE;
+  return (ensure_db (self, db, error_out) != NULL);
 }
 
 static JsonObject *
@@ -853,7 +860,7 @@ xb_database_manager_fix_query (XbDatabaseManager *self,
   DatabasePayload *payload;
   GError *error = NULL;
 
-  payload = xb_database_manager_ensure_db (self, db, &error);
+  payload = ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -882,7 +889,7 @@ xb_database_manager_query_db (XbDatabaseManager *self,
   DatabasePayload *payload;
   GError *error = NULL;
 
-  payload = xb_database_manager_ensure_db (self, db, &error);
+  payload = ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
