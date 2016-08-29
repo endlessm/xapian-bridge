@@ -491,9 +491,9 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
 }
 
 static DatabasePayload *
-xb_database_manager_ensure_db (XbDatabaseManager *self,
-                               XbDatabase db,
-                               GError **error_out)
+ensure_db (XbDatabaseManager *self,
+           XbDatabase db,
+           GError **error_out)
 {
   XbDatabaseManagerPrivate *priv = xb_database_manager_get_instance_private (self);
   GError *error = NULL;
@@ -513,20 +513,11 @@ xb_database_manager_ensure_db (XbDatabaseManager *self,
 }
 
 gboolean
-xb_database_manager_create_db (XbDatabaseManager *self,
+xb_database_manager_ensure_db (XbDatabaseManager *self,
                                XbDatabase db,
                                GError **error_out)
 {
-  GError *error = NULL;
-
-  xb_database_manager_create_db_internal (self, db, &error);
-  if (error != NULL)
-    {
-      g_propagate_error (error_out, error);
-      return FALSE;
-    }
-
-  return TRUE;
+  return (ensure_db (self, db, error_out) != NULL);
 }
 
 static JsonObject *
@@ -853,7 +844,7 @@ xb_database_manager_fix_query (XbDatabaseManager *self,
   DatabasePayload *payload;
   GError *error = NULL;
 
-  payload = xb_database_manager_ensure_db (self, db, &error);
+  payload = ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
@@ -882,7 +873,7 @@ xb_database_manager_query_db (XbDatabaseManager *self,
   DatabasePayload *payload;
   GError *error = NULL;
 
-  payload = xb_database_manager_ensure_db (self, db, &error);
+  payload = ensure_db (self, db, &error);
   if (error != NULL)
     {
       g_propagate_error (error_out, error);
