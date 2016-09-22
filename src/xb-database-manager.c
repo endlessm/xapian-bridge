@@ -380,7 +380,7 @@ create_database_from_manifest (const char  *manifest_path,
     {
       JsonObject *json_db = json_node_get_object (l->data);
 
-      int db_offset = json_object_get_int_member (json_db, "offset");
+      guint64 db_offset = json_object_get_int_member (json_db, "offset");
 
       const char *relpath = json_object_get_string_member (json_db, "path");
       g_autofree char *db_path = g_build_filename (manifest_dir_path, relpath, NULL);
