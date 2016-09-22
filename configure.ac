@@ -58,6 +58,10 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 AC_CACHE_SAVE
 
+# System features
+# ---------------
+AC_SYS_LARGEFILE
+
 # Required build tools
 # --------------------
 # Make sure we can create directory hierarchies
