@@ -169,6 +169,9 @@ xb_router_handle_route (XbRouter *self,
   GHashTable *params;
   gchar *word;
   gint idx;
+  gint64 start_time, end_time;
+
+  start_time = g_get_monotonic_time ();
 
   if (method == NULL && message != NULL)
     method = message->method;
@@ -201,10 +204,16 @@ xb_router_handle_route (XbRouter *self,
 
       route->callback (params, query, message, route->user_data);
       g_hash_table_unref (params);
+
+      end_time = g_get_monotonic_time ();
+      g_info ("%s %s handled in %.3f ms", method, path,
+              (end_time - start_time) / 1000.0);
+
       return;
     }
 
   /* No handlers were found */
+  g_info ("%s %s not handled", method, path);
   g_signal_emit (self, signals[PATH_NOT_HANDLED], 0);
 }
 
