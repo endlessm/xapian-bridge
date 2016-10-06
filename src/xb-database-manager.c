@@ -395,6 +395,7 @@ create_database_from_manifest (const char  *manifest_path,
         goto out;
 
       xapian_database_add_database (db, internal_db);
+      g_object_unref (internal_db);
     }
 
  out:
