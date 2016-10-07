@@ -16,7 +16,12 @@ EXTRA_DIST = README.md
 
 generate-dbs: generate-test-db
 	$(top_builddir)/generate-test-db
-MAINTAINERCLEANFILES = test/testdb
+	$(top_builddir)/generate-test-db glass
+MAINTAINERCLEANFILES = \
+	test/testdb \
+	test/testdb.glass \
+	$(NULL)
+CLEANFILES += test/testdb.tmp
 
 # Specify a non-system dir for systemd units at distcheck
 AM_DISTCHECK_CONFIGURE_FLAGS = \
@@ -141,6 +146,7 @@ TEST_EXTENSIONS = .coverage
 
 EXTRA_DIST += \
 	test/testdb \
+	test/testdb.glass \
 	$(NULL)
 
 # # # CLEAN RULES # # #
