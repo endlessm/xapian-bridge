@@ -13,6 +13,15 @@ test_get_sample_db_path (void)
 }
 
 gchar *
+test_get_manifest_db_path (void)
+{
+  return g_test_build_filename (G_TEST_DIST,
+                                "test",
+                                "manifest.json",
+                                NULL);
+}
+
+gchar *
 test_get_invalid_db_path (void)
 {
   return g_test_build_filename (G_TEST_DIST,

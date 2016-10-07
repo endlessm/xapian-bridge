@@ -53,6 +53,7 @@ typedef struct {
   XbDatabaseManager *manager;
   GFileMonitor *monitor;
   gchar *path;
+  guint expiration_timeout;
 } DatabasePayload;
 
 static void
@@ -64,6 +65,9 @@ database_payload_free (DatabasePayload *payload)
   g_file_monitor_cancel (payload->monitor);
   g_clear_object (&payload->monitor);
   g_free (payload->path);
+
+  if (payload->expiration_timeout)
+    g_source_remove (payload->expiration_timeout);
 
   g_slice_free (DatabasePayload, payload);
 }
@@ -395,6 +399,7 @@ create_database_from_manifest (const char  *manifest_path,
         goto out;
 
       xapian_database_add_database (db, internal_db);
+      g_object_unref (internal_db);
     }
 
  out:
@@ -501,6 +506,14 @@ xb_database_manager_create_db_internal (XbDatabaseManager *self,
   return payload;
 }
 
+static gboolean
+on_database_expire (DatabasePayload *payload)
+{
+  payload->expiration_timeout = 0;
+  xb_database_manager_invalidate_db (payload->manager, payload->path);
+  return G_SOURCE_REMOVE;
+}
+
 static DatabasePayload *
 ensure_db (XbDatabaseManager *self,
            XbDatabase db,
@@ -522,6 +535,11 @@ ensure_db (XbDatabaseManager *self,
       g_propagate_error (error_out, error);
       return NULL;
     }
+
+  if (payload->expiration_timeout)
+    g_source_remove (payload->expiration_timeout);
+  payload->expiration_timeout =
+    g_timeout_add_seconds (5, (GSourceFunc) on_database_expire, payload);
 
   g_free (path);
 

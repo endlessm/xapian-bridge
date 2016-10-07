@@ -44,6 +44,28 @@ create_sample_db (DatabaseManagerFixture *fixture,
   return res;
 }
 
+static XbDatabase
+get_manifest_db (void)
+{
+  return ((XbDatabase) { .manifest_path = test_get_manifest_db_path () });
+}
+
+static gboolean
+create_manifest_db (DatabaseManagerFixture *fixture,
+                    XbDatabase *db_out,
+                    GError **error)
+{
+  gboolean res;
+  XbDatabase db = get_manifest_db ();
+
+  res = xb_database_manager_ensure_db (fixture->manager, db, error);
+
+  if (db_out)
+    *db_out = db;
+
+  return res;
+}
+
 static void
 assert_json_query_object (JsonObject *object,
                           gint num_results,
@@ -290,6 +312,23 @@ test_creates_db (DatabaseManagerFixture *fixture,
 }
 
 static void
+test_creates_db_from_manifest (DatabaseManagerFixture *fixture,
+                               gconstpointer unused)
+{
+  gboolean res;
+  XbDatabase db;
+  GError *error = NULL;
+
+  res = create_manifest_db (fixture, &db, &error);
+
+  g_assert_true (res);
+  g_assert_no_error (error);
+  g_assert_nonnull (db.manifest_path);
+
+  g_free ((char *) db.manifest_path);
+}
+
+static void
 test_database_manager_new_succeeds (DatabaseManagerFixture *fixture,
                                     gconstpointer user_data)
 {
@@ -309,6 +348,8 @@ main (int argc,
                       test_database_manager_new_succeeds);
   ADD_DBMANAGER_TEST ("/dbmanager/creates-db",
                       test_creates_db);
+  ADD_DBMANAGER_TEST ("/dbmanager/creates-db-from-manifest",
+                      test_creates_db_from_manifest);
   ADD_DBMANAGER_TEST ("/dbmanager/create-invalid-db-fails",
                       test_create_invalid_db_fails);
   ADD_DBMANAGER_TEST ("/dbmanager/queries-db",

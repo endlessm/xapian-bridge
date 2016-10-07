@@ -1,0 +1,9 @@
+{
+  "version": "invalid",
+  "xapian_databases": [
+    {
+      "path": "testdb.glass",
+      "offset": 0
+    }
+  ]
+}
