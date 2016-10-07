@@ -147,6 +147,7 @@ TEST_EXTENSIONS = .coverage
 EXTRA_DIST += \
 	test/testdb \
 	test/testdb.glass \
+	test/manifest.json \
 	$(NULL)
 
 # # # CLEAN RULES # # #
