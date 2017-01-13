@@ -592,7 +592,19 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
       return NULL;
     }
 
-  limit = (guint) g_ascii_strtod (str, NULL);
+  /* str may contain a negative value to mean "all matching results"; since
+   * casting a negative floating point value into an unsigned integer is
+   * undefined behavior, we need to perform some level of validation first
+   */
+  {
+    double val = g_ascii_strtod (str, NULL);
+
+    /* Allow negative values to mean "all results" */
+    if (val < 0)
+      limit = G_MAXUINT;
+    else
+      limit = CLAMP (val, 0, G_MAXUINT);
+  }
 
   xapian_enquire_set_query (enquire, query, xapian_query_get_length (query));
   matches = xapian_enquire_get_mset (enquire, offset, limit, &error);
