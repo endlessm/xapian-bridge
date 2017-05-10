@@ -23,6 +23,7 @@
 
 #define QUERY_PARAM_COLLAPSE_KEY "collapse"
 #define QUERY_PARAM_CUTOFF "cutoff"
+#define QUERY_PARAM_DEFAULT_OP "defaultOp"
 #define QUERY_PARAM_LIMIT "limit"
 #define QUERY_PARAM_LANG "lang"
 #define QUERY_PARAM_MATCH_ALL "matchAll"
@@ -693,6 +694,7 @@ xb_database_manager_fix_query_internal (XbDatabaseManager *self,
   GError *error = NULL;
   const gchar *query_str;
   const gchar *match_all;
+  const gchar *default_op;
   XapianStopper *stopper;
   JsonObject *retval;
 
@@ -723,6 +725,42 @@ xb_database_manager_fix_query_internal (XbDatabaseManager *self,
       no_stop_words = g_strjoinv (" ", filtered_words);
       json_object_set_string_member (retval, FIX_RESULTS_MEMBER_STOP_WORD_CORRECTED_RESULT,
                                      no_stop_words);
+    }
+
+  default_op = g_hash_table_lookup (query_options, QUERY_PARAM_DEFAULT_OP);
+  if (default_op != NULL)
+    {
+      if (g_str_equal (default_op, "and"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_AND);
+        }
+      else if (g_str_equal (default_op, "or"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_OR);
+        }
+      else if (g_str_equal (default_op, "near"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_NEAR);
+        }
+      else if (g_str_equal (default_op, "phrase"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_PHRASE);
+        }
+      else if (g_str_equal (default_op, "elite-set"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_ELITE_SET);
+        }
+      else if (g_str_equal (default_op, "synonym"))
+        {
+          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_SYNONYM);
+        }
+      else
+        {
+          g_set_error (error_out, XB_ERROR,
+                      XB_ERROR_INVALID_PARAMS,
+                      "defaultOp parameter must be \"and\", \"or\", \"near\", \"phrase\", \"elite-set\" or \"synonym\".");
+          goto out;
+        }
     }
 
   /* Parse the user's query so we can request a spelling correction. */
@@ -909,6 +947,9 @@ xb_database_manager_fix_query (XbDatabaseManager *self,
  *            and "ascending"
  *   - q: querystring that's parseable by a XapianQueryParser
  *   - sortBy: field to sort the results on
+ *   - defaultOp: default operator to use when parsing q ("and", "or", "near",
+ *     "phrase", "elite-set" or "synonym"; if not specified the default is
+ *     "or")
  */
 JsonObject *
 xb_database_manager_query_db (XbDatabaseManager *self,
