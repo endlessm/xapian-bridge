@@ -25,6 +25,7 @@
 #include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define DEFAULT_PORT 3004
 #define META_DB_ALL "_all"
@@ -185,6 +186,42 @@ server_get_fix_callback (GHashTable *params,
     }
 }
 
+/* GET /test - test for existence of a particular feature
+ * Returns:
+ *     200 - Feature supported by this instance of xapian-bridge
+ *     400 - The required "feature" parameter wasn't specified
+ *     404 - Feature not supported by this instance of xapian-bridge
+ *
+ * Note: xapian-bridge versions predating the addition of /test return 500
+ * (default response to an unknown URL) so you typically want to handle 500
+ * in the same way as 404.
+ */
+static void
+server_get_test_callback (GHashTable *params,
+                          GHashTable *query,
+                          SoupMessage *message,
+                          gpointer user_data)
+{
+  XapianBridge *xb = user_data;
+  const char *feature;
+
+  feature = g_hash_table_lookup (query, "feature");
+  if (feature == NULL)
+    {
+      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
+      return;
+    }
+
+  if (strcmp (feature, "query-param-defaultOp") == 0)
+    {
+      server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
+    }
+  else
+    {
+      server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
+    }
+}
+
 static gboolean
 sigterm_handler (gpointer user_data)
 {
@@ -271,6 +308,8 @@ xapian_bridge_new (GError **error_out)
                         server_get_query_callback, xb);
   xb_routed_server_get (server, "/fix",
                         server_get_fix_callback, xb);
+  xb_routed_server_get (server, "/test",
+                        server_get_test_callback, xb);
 
   return xb;
 }
