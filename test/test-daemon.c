@@ -236,6 +236,7 @@ test_get_query_returns_json (DaemonFixture *fixture,
   g_object_unref (req);
   g_object_unref (session);
   g_object_unref (message);
+  g_object_unref (stream);
 }
 
 static void
