@@ -202,9 +202,11 @@ server_get_test_callback (GHashTable *params,
                           gpointer user_data)
 {
   XapianBridge *xb = user_data;
-  const char *feature;
+  const char *feature = NULL;
 
-  feature = g_hash_table_lookup (query, "feature");
+  if (query)
+    feature = g_hash_table_lookup (query, "feature");
+
   if (feature == NULL)
     {
       server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
