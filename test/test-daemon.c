@@ -111,7 +111,7 @@ test_feature_testing_works (DaemonFixture *fixture,
   SoupMessage *message;
   gchar *req_uri;
 
-  // Test for a known feature.
+  /* Test for a known feature. */
   req_uri = g_strdup_printf ("http://localhost:%s/test?feature=query-param-defaultOp",
                              fixture->port);
 
@@ -136,8 +136,9 @@ test_feature_testing_works (DaemonFixture *fixture,
   g_object_unref (req);
   g_object_unref (session);
   g_object_unref (message);
+  g_object_unref (stream);
 
-  // Test for a unknown feature.
+  /* Test for a unknown feature. */
   req_uri = g_strdup_printf ("http://localhost:%s/test?feature=no-such-feature",
                              fixture->port);
 
@@ -162,8 +163,9 @@ test_feature_testing_works (DaemonFixture *fixture,
   g_object_unref (req);
   g_object_unref (session);
   g_object_unref (message);
+  g_object_unref (stream);
 
-  // Fail to specify a feature to test for.
+  /* Fail to specify a feature to test for. */
   req_uri = g_strdup_printf ("http://localhost:%s/test",
                              fixture->port);
 
@@ -188,6 +190,7 @@ test_feature_testing_works (DaemonFixture *fixture,
   g_object_unref (req);
   g_object_unref (session);
   g_object_unref (message);
+  g_object_unref (stream);
 }
 
 static void

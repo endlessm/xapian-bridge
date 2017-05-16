@@ -25,7 +25,6 @@
 #include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define DEFAULT_PORT 3004
 #define META_DB_ALL "_all"
@@ -212,14 +211,10 @@ server_get_test_callback (GHashTable *params,
       return;
     }
 
-  if (strcmp (feature, "query-param-defaultOp") == 0)
-    {
-      server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
-    }
+  if (g_strcmp0 (feature, "query-param-defaultOp") == 0)
+    server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
   else
-    {
-      server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
-    }
+    server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
 }
 
 static gboolean
