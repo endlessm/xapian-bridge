@@ -25,11 +25,17 @@
 #include <json-glib/json-glib.h>
 #include <libsoup/soup.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define DEFAULT_PORT 3004
 #define META_DB_ALL "_all"
 #define MIME_JSON "application/json; charset=utf-8"
 #define SYSTEMD_LISTEN_FD 3
+
+/* JSON array of supported features (for /test). */
+#define XB_FEATURE_JSON_ARRAY "["\
+    "\"query-param-defaultOp\""\
+    "]"
 
 typedef struct {
   XbRoutedServer *server;
@@ -185,15 +191,13 @@ server_get_fix_callback (GHashTable *params,
     }
 }
 
-/* GET /test - test for existence of a particular feature
+/* GET /test - get a list of supported features
  * Returns:
- *     200 - Feature supported by this instance of xapian-bridge
- *     400 - The required "feature" parameter wasn't specified
- *     404 - Feature not supported by this instance of xapian-bridge
+ *     200 - List of features supported by this instance of xapian-bridge
  *
  * Note: xapian-bridge versions predating the addition of /test return 500
  * (default response to an unknown URL) so you typically want to handle 500
- * in the same way as 404.
+ * the same way as if you'd received 200 with an empty list.
  */
 static void
 server_get_test_callback (GHashTable *params,
@@ -202,21 +206,11 @@ server_get_test_callback (GHashTable *params,
                           gpointer user_data)
 {
   XapianBridge *xb = user_data;
-  const char *feature = NULL;
 
-  if (query)
-    feature = g_hash_table_lookup (query, "feature");
-
-  if (feature == NULL)
-    {
-      server_send_response (message, SOUP_STATUS_BAD_REQUEST, NULL, NULL);
-      return;
-    }
-
-  if (g_strcmp0 (feature, "query-param-defaultOp") == 0)
-    server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
-  else
-    server_send_response (message, SOUP_STATUS_NOT_FOUND, NULL, NULL);
+  soup_message_set_response (message, MIME_JSON, SOUP_MEMORY_STATIC,
+                             XB_FEATURE_JSON_ARRAY,
+                             strlen (XB_FEATURE_JSON_ARRAY));
+  server_send_response (message, SOUP_STATUS_OK, NULL, NULL);
 }
 
 static gboolean
