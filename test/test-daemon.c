@@ -1,6 +1,7 @@
 #include <gio/gio.h>
 #include <libsoup/soup.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/prctl.h>
 
 #include "test-util.h"
@@ -110,10 +111,10 @@ test_feature_testing_works (DaemonFixture *fixture,
   GString *reply;
   SoupMessage *message;
   gchar *req_uri;
+  const gchar *content_type;
 
-  /* Test for a known feature. */
-  req_uri = g_strdup_printf ("http://localhost:%s/test?feature=query-param-defaultOp",
-                             fixture->port);
+  /* Test for known features. */
+  req_uri = g_strdup_printf ("http://localhost:%s/test", fixture->port);
 
   session = soup_session_new ();
   req = soup_session_request_http (session, SOUP_METHOD_GET,
@@ -127,37 +128,18 @@ test_feature_testing_works (DaemonFixture *fixture,
   g_assert_nonnull (stream);
 
   reply = flush_stream_to_string (stream);
-  g_assert_cmpint (reply->len, ==, 0);
+  g_assert_cmpint (reply->len, >, 0);
+  /* Check the reply looks like a JSON array. */
+  g_assert_cmpint (reply->str[0], ==, '[');
+  g_assert_cmpint (reply->str[reply->len - 1], ==, ']');
+  /* Check the array contains a known feature name. */
+  g_assert (strstr (reply->str, "\"query-param-defaultOp\"") != NULL);
 
   message = soup_request_http_get_message (req);
   g_assert_cmpint (message->status_code, ==, 200);
 
-  g_string_free (reply, TRUE);
-  g_object_unref (req);
-  g_object_unref (session);
-  g_object_unref (message);
-  g_object_unref (stream);
-
-  /* Test for a unknown feature. */
-  req_uri = g_strdup_printf ("http://localhost:%s/test?feature=no-such-feature",
-                             fixture->port);
-
-  session = soup_session_new ();
-  req = soup_session_request_http (session, SOUP_METHOD_GET,
-                                   req_uri,
-                                   &error);
-  g_assert_no_error (error);
-  g_free (req_uri);
-
-  stream = soup_request_send (SOUP_REQUEST (req), NULL, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (stream);
-
-  reply = flush_stream_to_string (stream);
-  g_assert_cmpint (reply->len, ==, 0);
-
-  message = soup_request_http_get_message (req);
-  g_assert_cmpint (message->status_code, ==, 404);
+  content_type = soup_message_headers_get_content_type (message->response_headers, NULL);
+  g_assert_cmpstr (content_type, ==, "application/json");
 
   g_string_free (reply, TRUE);
   g_object_unref (req);
@@ -165,32 +147,6 @@ test_feature_testing_works (DaemonFixture *fixture,
   g_object_unref (message);
   g_object_unref (stream);
 
-  /* Fail to specify a feature to test for. */
-  req_uri = g_strdup_printf ("http://localhost:%s/test",
-                             fixture->port);
-
-  session = soup_session_new ();
-  req = soup_session_request_http (session, SOUP_METHOD_GET,
-                                   req_uri,
-                                   &error);
-  g_assert_no_error (error);
-  g_free (req_uri);
-
-  stream = soup_request_send (SOUP_REQUEST (req), NULL, &error);
-  g_assert_no_error (error);
-  g_assert_nonnull (stream);
-
-  reply = flush_stream_to_string (stream);
-  g_assert_cmpint (reply->len, ==, 0);
-
-  message = soup_request_http_get_message (req);
-  g_assert_cmpint (message->status_code, ==, 400);
-
-  g_string_free (reply, TRUE);
-  g_object_unref (req);
-  g_object_unref (session);
-  g_object_unref (message);
-  g_object_unref (stream);
 }
 
 static void
