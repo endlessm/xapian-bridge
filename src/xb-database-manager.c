@@ -682,6 +682,45 @@ create_empty_query_results (void)
   return object;
 }
 
+static gboolean
+parse_default_op (XapianQueryParser *qp, const gchar *str, GError **error)
+{
+  XapianQueryOp op;
+  if (g_str_equal (str, "and"))
+    {
+      op = XAPIAN_QUERY_OP_AND;
+    }
+  else if (g_str_equal (str, "or"))
+    {
+      op = XAPIAN_QUERY_OP_OR;
+    }
+  else if (g_str_equal (str, "near"))
+    {
+      op = XAPIAN_QUERY_OP_NEAR;
+    }
+  else if (g_str_equal (str, "phrase"))
+    {
+      op = XAPIAN_QUERY_OP_PHRASE;
+    }
+  else if (g_str_equal (str, "elite-set"))
+    {
+      op = XAPIAN_QUERY_OP_ELITE_SET;
+    }
+  else if (g_str_equal (str, "synonym"))
+    {
+      op = XAPIAN_QUERY_OP_SYNONYM;
+    }
+  else
+    {
+      g_set_error (error, XB_ERROR,
+                   XB_ERROR_INVALID_PARAMS,
+                   "defaultOp parameter must be \"and\", \"or\", \"near\", \"phrase\", \"elite-set\" or \"synonym\".");
+      return FALSE;
+    }
+  xapian_query_parser_set_default_op (qp, op);
+  return TRUE;
+}
+
 static JsonObject *
 xb_database_manager_fix_query_internal (XbDatabaseManager *self,
                            DatabasePayload *payload,
@@ -728,40 +767,8 @@ xb_database_manager_fix_query_internal (XbDatabaseManager *self,
     }
 
   default_op = g_hash_table_lookup (query_options, QUERY_PARAM_DEFAULT_OP);
-  if (default_op != NULL)
-    {
-      if (g_str_equal (default_op, "and"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_AND);
-        }
-      else if (g_str_equal (default_op, "or"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_OR);
-        }
-      else if (g_str_equal (default_op, "near"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_NEAR);
-        }
-      else if (g_str_equal (default_op, "phrase"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_PHRASE);
-        }
-      else if (g_str_equal (default_op, "elite-set"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_ELITE_SET);
-        }
-      else if (g_str_equal (default_op, "synonym"))
-        {
-          xapian_query_parser_set_default_op (payload->qp, XAPIAN_QUERY_OP_SYNONYM);
-        }
-      else
-        {
-          g_set_error (error_out, XB_ERROR,
-                      XB_ERROR_INVALID_PARAMS,
-                      "defaultOp parameter must be \"and\", \"or\", \"near\", \"phrase\", \"elite-set\" or \"synonym\".");
-          goto out;
-        }
-    }
+  if (default_op != NULL && !parse_default_op (payload->qp, default_op, error_out))
+    goto out;
 
   /* Parse the user's query so we can request a spelling correction. */
   xapian_query_parser_parse_query_full (payload->qp, query_str,
@@ -812,6 +819,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   XapianStem *stem;
   const gchar *str;
   const gchar *match_all;
+  const gchar *default_op;
   JsonObject *results = NULL;
 
   if (database_is_empty (payload->db))
@@ -860,6 +868,10 @@ xb_database_manager_query (XbDatabaseManager *self,
     }
   else if (str != NULL && match_all == NULL)
     {
+      default_op = g_hash_table_lookup (query_options, QUERY_PARAM_DEFAULT_OP);
+      if (default_op != NULL && !parse_default_op (payload->qp, default_op, error_out))
+        goto out;
+
       /* save the query string aside */
       query_str = g_strdup (str);
       parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
