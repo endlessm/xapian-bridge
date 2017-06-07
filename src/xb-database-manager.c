@@ -24,6 +24,7 @@
 #define QUERY_PARAM_COLLAPSE_KEY "collapse"
 #define QUERY_PARAM_CUTOFF "cutoff"
 #define QUERY_PARAM_DEFAULT_OP "defaultOp"
+#define QUERY_PARAM_FLAGS "flags"
 #define QUERY_PARAM_LANG "lang"
 #define QUERY_PARAM_LIMIT "limit"
 #define QUERY_PARAM_MATCH_ALL "matchAll"
@@ -721,6 +722,90 @@ parse_default_op (XapianQueryParser *qp, const gchar *str, GError **error)
   return TRUE;
 }
 
+static gboolean
+parse_query_flags (const gchar *str,
+                   XapianQueryParserFeature *flags_ptr,
+                   GError **error)
+{
+  XapianQueryParserFeature flags = 0;
+  gchar **v = g_strsplit (str, ",", -1), **iter;
+  for (iter = v; *iter != NULL; iter++)
+    {
+      if (g_str_equal (*iter, "boolean"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_BOOLEAN;
+        }
+      else if (g_str_equal (*iter, "phrase"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_PHRASE;
+        }
+      else if (g_str_equal (*iter, "lovehate"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_LOVEHATE;
+        }
+      else if (g_str_equal (*iter, "boolean-any-case"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_BOOLEAN_ANY_CASE;
+        }
+      else if (g_str_equal (*iter, "wildcard"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_WILDCARD;
+        }
+      else if (g_str_equal (*iter, "pure-not"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_PURE_NOT;
+        }
+      else if (g_str_equal (*iter, "partial"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_PARTIAL;
+        }
+      else if (g_str_equal (*iter, "spelling-correction"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_SPELLING_CORRECTION;
+        }
+      else if (g_str_equal (*iter, "synonym"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_SYNONYM;
+        }
+      else if (g_str_equal (*iter, "auto-synonyms"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_AUTO_SYNONYMS;
+        }
+      else if (g_str_equal (*iter, "auto-multiword-synonyms"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_AUTO_MULTIWORD_SYNONYMS;
+        }
+      else if (g_str_equal (*iter, "cjk-ngram"))
+        {
+#ifdef XAPIAN_QUERY_PARSER_FEATURE_CJK_NGRAM
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_CJK_NGRAM;
+#else
+          /* Not wrapped by older xapian-glib. */
+          g_set_error (error, XB_ERROR,
+                       XB_ERROR_INVALID_PARAMS,
+                       "Query parser flag 'cjk-ngram' not supported by xapian-glib in use.");
+          g_strfreev (v);
+          return FALSE;
+#endif
+        }
+      else if (g_str_equal (*iter, "default"))
+        {
+          flags |= XAPIAN_QUERY_PARSER_FEATURE_DEFAULT;
+        }
+      else
+        {
+          g_set_error (error, XB_ERROR,
+                       XB_ERROR_INVALID_PARAMS,
+                       "Unknown query parser flag.");
+          g_strfreev (v);
+          return FALSE;
+        }
+    }
+  *flags_ptr = flags;
+  g_strfreev (v);
+  return TRUE;
+}
+
 static JsonObject *
 xb_database_manager_fix_query_internal (XbDatabaseManager *self,
                            DatabasePayload *payload,
@@ -734,6 +819,8 @@ xb_database_manager_fix_query_internal (XbDatabaseManager *self,
   const gchar *query_str;
   const gchar *match_all;
   const gchar *default_op;
+  const gchar *flags_str;
+  XapianQueryParserFeature flags = QUERY_PARSER_FLAGS;
   XapianStopper *stopper;
   JsonObject *retval;
 
@@ -770,9 +857,13 @@ xb_database_manager_fix_query_internal (XbDatabaseManager *self,
   if (default_op != NULL && !parse_default_op (payload->qp, default_op, error_out))
     goto out;
 
+  flags_str = g_hash_table_lookup (query_options, QUERY_PARAM_FLAGS);
+  if (flags_str != NULL && !parse_query_flags (flags_str, &flags, error_out))
+    goto out;
+
   /* Parse the user's query so we can request a spelling correction. */
   xapian_query_parser_parse_query_full (payload->qp, query_str,
-                                        QUERY_PARSER_FLAGS, "", &error);
+                                        flags, "", &error);
 
   if (error != NULL)
     {
@@ -820,6 +911,8 @@ xb_database_manager_query (XbDatabaseManager *self,
   const gchar *str;
   const gchar *match_all;
   const gchar *default_op;
+  const gchar *flags_str;
+  XapianQueryParserFeature flags = QUERY_PARSER_FLAGS;
   JsonObject *results = NULL;
 
   if (database_is_empty (payload->db))
@@ -872,10 +965,14 @@ xb_database_manager_query (XbDatabaseManager *self,
       if (default_op != NULL && !parse_default_op (payload->qp, default_op, error_out))
         goto out;
 
+      flags_str = g_hash_table_lookup (query_options, QUERY_PARAM_FLAGS);
+      if (flags_str != NULL && !parse_query_flags (flags_str, &flags, error_out))
+        goto out;
+
       /* save the query string aside */
       query_str = g_strdup (str);
       parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
-                                                           QUERY_PARSER_FLAGS, "", &error);
+                                                           flags, "", &error);
     }
   else
     {

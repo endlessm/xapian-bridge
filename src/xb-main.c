@@ -34,7 +34,8 @@
 
 /* JSON array of supported features (for /test). */
 #define XB_FEATURE_JSON_ARRAY "["\
-    "\"query-param-defaultOp\""\
+    "\"query-param-defaultOp\","\
+    "\"query-param-flags\""\
     "]"
 
 typedef struct {
