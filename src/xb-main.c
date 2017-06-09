@@ -35,6 +35,7 @@
 /* JSON array of supported features (for /test). */
 #define XB_FEATURE_JSON_ARRAY "["\
     "\"query-param-defaultOp\","\
+    "\"query-param-filter\","\
     "\"query-param-flags\""\
     "]"
 
