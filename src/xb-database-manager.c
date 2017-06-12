@@ -24,6 +24,8 @@
 #define QUERY_PARAM_COLLAPSE_KEY "collapse"
 #define QUERY_PARAM_CUTOFF "cutoff"
 #define QUERY_PARAM_DEFAULT_OP "defaultOp"
+#define QUERY_PARAM_FILTER "filter"
+#define QUERY_PARAM_FILTER_OUT "filterOut"
 #define QUERY_PARAM_FLAGS "flags"
 #define QUERY_PARAM_LANG "lang"
 #define QUERY_PARAM_LIMIT "limit"
@@ -901,8 +903,8 @@ xb_database_manager_query (XbDatabaseManager *self,
                            GHashTable *query_options,
                            GError **error_out)
 {
-  XapianQuery *parsed_query = NULL;
-  gchar *query_str = NULL;
+  XapianQuery *parsed_query = NULL, *filter_query, *filterout_query;
+  const gchar *query_str = NULL, *filter_str, *filterout_str;
   XapianEnquire *enquire = NULL;
   GError *error = NULL;
   const gchar *lang;
@@ -957,7 +959,7 @@ xb_database_manager_query (XbDatabaseManager *self,
   match_all = g_hash_table_lookup (query_options, QUERY_PARAM_MATCH_ALL);
   if (match_all != NULL && str == NULL)
     {
-      parsed_query = xapian_query_new_match_all ();
+      /* Handled below. */
     }
   else if (str != NULL && match_all == NULL)
     {
@@ -973,6 +975,12 @@ xb_database_manager_query (XbDatabaseManager *self,
       query_str = g_strdup (str);
       parsed_query = xapian_query_parser_parse_query_full (payload->qp, query_str,
                                                            flags, "", &error);
+
+      if (error != NULL)
+        {
+          g_propagate_error (error_out, error);
+          goto out;
+        }
     }
   else
     {
@@ -982,10 +990,54 @@ xb_database_manager_query (XbDatabaseManager *self,
       goto out;
     }
 
-  if (error != NULL)
+  /* Parse the filters (if any) and combine. */
+
+  filter_str = g_hash_table_lookup (query_options, QUERY_PARAM_FILTER);
+  if (filter_str != NULL)
     {
-      g_propagate_error (error_out, error);
-      goto out;
+      filter_query = xapian_query_parser_parse_query_full (payload->qp,
+                                                           filter_str,
+                                                           XAPIAN_QUERY_PARSER_FEATURE_DEFAULT,
+                                                           "", &error);
+      if (error != NULL)
+        {
+          g_propagate_error (error_out, error);
+          goto out;
+        }
+
+      if (parsed_query == NULL)
+        {
+          /* match_all */
+          parsed_query = filter_query;
+        }
+      else
+        {
+          parsed_query = xapian_query_new_for_pair (XAPIAN_QUERY_OP_FILTER,
+                                                    parsed_query,
+                                                    filter_query);
+        }
+    }
+  else if (parsed_query == NULL)
+    {
+      parsed_query = xapian_query_new_match_all ();
+    }
+
+  filterout_str = g_hash_table_lookup (query_options, QUERY_PARAM_FILTER_OUT);
+  if (filterout_str != NULL)
+    {
+      filterout_query = xapian_query_parser_parse_query_full (payload->qp,
+                                                              filterout_str,
+                                                              XAPIAN_QUERY_PARSER_FEATURE_DEFAULT,
+                                                              "", &error);
+      if (error != NULL)
+        {
+          g_propagate_error (error_out, error);
+          goto out;
+        }
+
+      parsed_query = xapian_query_new_for_pair (XAPIAN_QUERY_OP_AND_NOT,
+                                                parsed_query,
+                                                filterout_query);
     }
 
   str = g_hash_table_lookup (query_options, QUERY_PARAM_COLLAPSE_KEY);
