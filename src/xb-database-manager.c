@@ -324,6 +324,8 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
   JsonNode *node;
   JsonArray *array;
   GList *elements, *l;
+  const gchar *stopword;
+  gchar *stopword_chomped;
 
   stopwords_json = xapian_database_get_metadata (db, STOPWORDS_METADATA_KEY, &error);
   if (error != NULL)
@@ -350,7 +352,24 @@ xb_database_manager_register_stopwords (XbDatabaseManager *self,
 
       stopper = xapian_simple_stopper_new ();
       for (l = elements; l != NULL; l = l->next)
-        xapian_simple_stopper_add (stopper, json_node_get_string (l->data));
+        {
+          stopword = json_node_get_string (l->data);
+          /* In older databases, each stopword had a newline appended.
+           * This has now been fixed, but to avoid having to rebuild
+           * everything, we check for and remove such newlines.
+           */
+          if (g_str_has_suffix (stopword, "\n"))
+            {
+              stopword_chomped = g_strdup (stopword);
+              g_strchomp (stopword_chomped);
+              xapian_simple_stopper_add (stopper, stopword_chomped);
+              g_free (stopword_chomped);
+            }
+          else
+            {
+              xapian_simple_stopper_add (stopper, stopword);
+            }
+        }
 
       xapian_query_parser_set_stopper (query_parser, XAPIAN_STOPPER (stopper));
       g_object_unref (stopper);
