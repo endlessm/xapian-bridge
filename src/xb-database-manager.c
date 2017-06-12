@@ -32,6 +32,7 @@
 #define QUERY_PARAM_ORDER "order"
 #define QUERY_PARAM_QUERYSTR "q"
 #define QUERY_PARAM_SORT_BY "sortBy"
+#define QUERY_PARAM_FLAGS "flags"
 
 #define QUERY_RESULTS_MEMBER_NUM_RESULTS "numResults"
 #define QUERY_RESULTS_MEMBER_OFFSET "offset"
