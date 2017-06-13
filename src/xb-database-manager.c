@@ -904,7 +904,8 @@ xb_database_manager_query (XbDatabaseManager *self,
                            GError **error_out)
 {
   XapianQuery *parsed_query = NULL, *filter_query, *filterout_query;
-  const gchar *query_str = NULL, *filter_str, *filterout_str;
+  const gchar *filter_str, *filterout_str;
+  gchar *query_str = NULL;
   XapianEnquire *enquire = NULL;
   GError *error = NULL;
   const gchar *lang;
