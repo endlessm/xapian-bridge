@@ -732,11 +732,23 @@ parse_default_op (XapianQueryParser *qp, const gchar *str, GError **error)
     {
       op = XAPIAN_QUERY_OP_SYNONYM;
     }
+  else if (g_str_equal (str, "max"))
+    {
+#ifdef XAPIAN_QUERY_OP_MAX
+      op = XAPIAN_QUERY_OP_MAX;
+#else
+      // Not wrapped by older xapian-glib.
+      g_set_error (error, XB_ERROR,
+                   XB_ERROR_INVALID_PARAMS,
+                   "defaultOp value 'max' not supported by xapian-glib in use.");
+      return FALSE;
+#endif
+    }
   else
     {
       g_set_error (error, XB_ERROR,
                    XB_ERROR_INVALID_PARAMS,
-                   "defaultOp parameter must be \"and\", \"or\", \"near\", \"phrase\", \"elite-set\" or \"synonym\".");
+                   "defaultOp parameter must be \"and\", \"or\", \"near\", \"phrase\", \"elite-set\", \"synonym\" or \"max\".");
       return FALSE;
     }
   xapian_query_parser_set_default_op (qp, op);
