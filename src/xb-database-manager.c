@@ -672,23 +672,12 @@ xb_database_manager_fetch_results (XbDatabaseManager *self,
 
 /* Checks if the given database is empty (has no documents). Empty databases
  * cause problems with XapianEnquire, so we need to assert that a db isn't empty
- * before making an XapianEnquire for it.
+ * before making a XapianEnquire for it.
  */
 static gboolean
 database_is_empty (XapianDatabase *db)
 {
-  char *uuid;
-
-  /* "If the backend does not support UUIDs or this database has no
-   * subdatabases, the UUID will be empty."
-   * http://xapian.org/docs/apidoc/html/classXapian_1_1Database.html
-   */
-  uuid = xapian_database_get_uuid (db);
-  if (uuid == NULL || uuid[0] == '\0')
-    return TRUE;
-
-  g_free (uuid);
-  return FALSE;
+  return xapian_database_get_doc_count (db) == 0;
 }
 
 static JsonObject *
