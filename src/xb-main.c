@@ -28,7 +28,6 @@
 #include <string.h>
 
 #define DEFAULT_PORT 3004
-#define META_DB_ALL "_all"
 #define MIME_JSON "application/json; charset=utf-8"
 #define SYSTEMD_LISTEN_FD 3
 
@@ -42,7 +41,6 @@
 typedef struct {
   XbRoutedServer *server;
   XbDatabaseManager *manager;
-  GList *meta_database_names;
   GMainLoop *loop;
   guint sigterm_id;
 } XapianBridge;
@@ -230,7 +228,6 @@ xapian_bridge_free (XapianBridge *xb)
   g_clear_object (&xb->manager);
   g_clear_object (&xb->server);
   g_clear_pointer (&xb->loop, g_main_loop_unref);
-  g_list_free_full (xb->meta_database_names, g_free);
 
   if (xb->sigterm_id > 0)
     g_source_remove (xb->sigterm_id);
@@ -294,7 +291,6 @@ xapian_bridge_new (GError **error_out)
   xb->server = server;
   xb->manager = xb_database_manager_new ();
   xb->loop = g_main_loop_new (NULL, FALSE);
-  xb->meta_database_names = g_list_prepend (xb->meta_database_names, g_strdup (META_DB_ALL));
   xb->sigterm_id = g_unix_signal_add (SIGTERM, sigterm_handler, xb);
 
   xb_routed_server_get (server, "/query",
